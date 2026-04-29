@@ -60,6 +60,7 @@
 #include "utils/memutils.h"
 #include "utils/palloc.h"
 
+#include "pg_stat_per_query_storage.h"
 
 #define MAX_BACKEND_PROCESES (MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts)
 #define  IntArrayGetTextDatum(x,y) intarray_get_datum(x,y)
@@ -75,21 +76,21 @@
 #define JUMBLE_SIZE				1024	/* query serialization buffer size */
 
 #define HISTOGRAM_MAX_TIME		50000000
-#define MAX_RESPONSE_BUCKET 50
+//#define MAX_RESPONSE_BUCKET 50
 #define INVALID_BUCKET_ID	-1
 #define TEXT_LEN			255
-#define ERROR_MESSAGE_LEN	100
+//#define ERROR_MESSAGE_LEN	100
 #define REL_TYPENAME_LEN	64
-#define REL_LST				10
-#define REL_LEN				132 /* REL_TYPENAME_LEN * 2 (relname + schema) + 1
-								 * (for view indication) + 1 and dot and
+//#define REL_LST				10
+//#define REL_LEN				132 /* REL_TYPENAME_LEN * 2 (relname + schema) + 1
+								 /* (for view indication) + 1 and dot and
 								 * string terminator */
 #define CMD_LST				10
 #define CMD_LEN				20
-#define APPLICATIONNAME_LEN	NAMEDATALEN
-#define COMMENTS_LEN        256
+//#define APPLICATIONNAME_LEN	NAMEDATALEN
+//#define COMMENTS_LEN        256
 #define PGSM_OVER_FLOW_MAX	10
-#define PLAN_TEXT_LEN		1024
+//#define PLAN_TEXT_LEN		1024
 /* the assumption of query max nested level */
 #define DEFAULT_MAX_NESTED_LEVEL	10
 
@@ -100,7 +101,7 @@
 #define QUERY_BUFFER_OVERFLOW(x,y)  		((x + y + sizeof(uint64) + sizeof(uint64)) > MAX_QUERY_BUF)
 #define QUERY_MARGIN 						100
 #define MIN_QUERY_LEN						10
-#define SQLCODE_LEN                         20
+//#define SQLCODE_LEN                         20
 #define TOTAL_RELS_LENGTH					(REL_LST * REL_LEN)
 #define	MAX_SETTINGS                        15
 
@@ -172,23 +173,23 @@ typedef enum AGG_KEY
 #define MAX_QUERY_LEN 1024
 
 /* shared memory storage for the query */
-typedef struct CallTime
+/*typedef struct CallTime
 {
-	double		total_time;		/* total execution time, in msec */
-	double		min_time;		/* minimum execution time in msec */
-	double		max_time;		/* maximum execution time in msec */
-	double		mean_time;		/* mean execution time in msec */
-	double		sum_var_time;	/* sum of variances in execution time in msec */
+	double		total_time;		/* total execution time, in msec
+	double		min_time;		/* minimum execution time in msec
+	double		max_time;		/* maximum execution time in msec
+	double		mean_time;		/* mean execution time in msec
+	double		sum_var_time;	/* sum of variances in execution time in msec
 } CallTime;
 
 
 typedef struct PlanInfo
 {
-	int64		planid;			/* plan identifier */
-	char		plan_text[PLAN_TEXT_LEN];	/* plan text */
-	size_t		plan_len;		/* strlen(plan_text) */
+	int64		planid;			/* plan identifier
+	char		plan_text[PLAN_TEXT_LEN];	/* plan text
+	size_t		plan_len;		/* strlen(plan_text)
 } PlanInfo;
-
+*/
 typedef struct pgsmHashKey
 {
 	uint64		bucket_id;		/* bucket number */
@@ -202,116 +203,117 @@ typedef struct pgsmHashKey
 	int64		parentid;		/* parent queryId of current query */
 } pgsmHashKey;
 
-typedef struct QueryInfo
+/*typedef struct QueryInfo
 {
 	dsa_pointer parent_query;
 	int64		type;			/* type of query, options are query, info,
-								 * warning, error, fatal */
+								 * warning, error, fatal
 	char		application_name[APPLICATIONNAME_LEN];
 	char		comments[COMMENTS_LEN];
 	char		relations[REL_LST][REL_LEN];	/* List of relation involved
-												 * in the query */
-	int			num_relations;	/* Number of relation in the query */
+												 * in the query
+	int			num_relations;	/* Number of relation in the query
 	CmdType		cmd_type;		/* query command type
-								 * SELECT/UPDATE/DELETE/INSERT */
+								 * SELECT/UPDATE/DELETE/INSERT
 } QueryInfo;
-
-typedef struct ErrorInfo
+*/
+/*typedef struct ErrorInfo
 {
-	int64		elevel;			/* error elevel */
-	char		sqlcode[SQLCODE_LEN];	/* error sqlcode  */
-	char		message[ERROR_MESSAGE_LEN]; /* error message text */
+	int64		elevel;			/* error elevel
+	char		sqlcode[SQLCODE_LEN];	/* error sqlcode
+	char		message[ERROR_MESSAGE_LEN]; /* error message text
 } ErrorInfo;
-
-typedef struct Calls
+*/
+/*typedef struct Calls
 {
-	int64		calls;			/* # of times executed */
-	int64		rows;			/* total # of retrieved or affected rows */
-	double		usage;			/* usage factor */
+	int64		calls;			/* # of times executed
+	int64		rows;			/* total # of retrieved or affected rows
+	double		usage;			/* usage factor
 } Calls;
+*/
 
-
-typedef struct Blocks
+/*typedef struct Blocks
 {
-	int64		shared_blks_hit;	/* # of shared buffer hits */
-	int64		shared_blks_read;	/* # of shared disk blocks read */
-	int64		shared_blks_dirtied;	/* # of shared disk blocks dirtied */
-	int64		shared_blks_written;	/* # of shared disk blocks written */
-	int64		local_blks_hit; /* # of local buffer hits */
-	int64		local_blks_read;	/* # of local disk blocks read */
-	int64		local_blks_dirtied; /* # of local disk blocks dirtied */
-	int64		local_blks_written; /* # of local disk blocks written */
-	int64		temp_blks_read; /* # of temp blocks read */
-	int64		temp_blks_written;	/* # of temp blocks written */
+	int64		shared_blks_hit;	/* # of shared buffer hits
+	int64		shared_blks_read;	/* # of shared disk blocks read
+	int64		shared_blks_dirtied;	/* # of shared disk blocks dirtied
+	int64		shared_blks_written;	/* # of shared disk blocks written
+	int64		local_blks_hit; /* # of local buffer hits
+	int64		local_blks_read;	/* # of local disk blocks read
+	int64		local_blks_dirtied; /* # of local disk blocks dirtied
+	int64		local_blks_written; /* # of local disk blocks written
+	int64		temp_blks_read; /* # of temp blocks read
+	int64		temp_blks_written;	/* # of temp blocks written
 	double		shared_blk_read_time;	/* time spent reading shared blocks,
-										 * in msec */
+										 * in msec
 	double		shared_blk_write_time;	/* time spent writing shared blocks,
-										 * in msec */
+										 * in msec
 	double		local_blk_read_time;	/* time spent reading local blocks, in
-										 * msec */
+										 * msec
 	double		local_blk_write_time;	/* time spent writing local blocks, in
-										 * msec */
-	double		temp_blk_read_time; /* time spent reading temp blocks, in msec */
+										 * msec
+	double		temp_blk_read_time; /* time spent reading temp blocks, in msec
 	double		temp_blk_write_time;	/* time spent writing temp blocks, in
-										 * msec */
+										 * msec
 
-	/*
+	
 	 * Variables for local entry. The values to be passed to pgsm_update_entry
 	 * from pgsm_store.
-	 */
+	 
 	instr_time	instr_shared_blk_read_time; /* time spent reading shared
-											 * blocks */
+											 * blocks
 	instr_time	instr_shared_blk_write_time;	/* time spent writing shared
-												 * blocks */
-	instr_time	instr_local_blk_read_time;	/* time spent reading local blocks */
-	instr_time	instr_local_blk_write_time; /* time spent writing local blocks */
-	instr_time	instr_temp_blk_read_time;	/* time spent reading temp blocks */
-	instr_time	instr_temp_blk_write_time;	/* time spent writing temp blocks */
+												 * blocks
+	instr_time	instr_local_blk_read_time;	/* time spent reading local blocks
+	instr_time	instr_local_blk_write_time; /* time spent writing local blocks
+	instr_time	instr_temp_blk_read_time;	/* time spent reading temp blocks
+	instr_time	instr_temp_blk_write_time;	/* time spent writing temp blocks
 } Blocks;
 
 typedef struct JitInfo
 {
-	int64		jit_functions;	/* total number of JIT functions emitted */
-	double		jit_generation_time;	/* total time to generate jit code */
+	int64		jit_functions;	/* total number of JIT functions emitted
+	double		jit_generation_time;	/* total time to generate jit code
 	int64		jit_inlining_count; /* number of times inlining time has been
-									 * > 0 */
-	double		jit_deform_time;	/* total time to deform tuples in jit code */
+									 * > 0
+	double		jit_deform_time;	/* total time to deform tuples in jit code
 	int64		jit_deform_count;	/* number of times deform time has been >
-									 * 0 */
-	double		jit_inlining_time;	/* total time to inline jit code */
+									 * 0
+	double		jit_inlining_time;	/* total time to inline jit code
 	int64		jit_optimization_count; /* number of times optimization time
-										 * has been > 0 */
-	double		jit_optimization_time;	/* total time to optimize jit code */
+										 * has been > 0
+	double		jit_optimization_time;	/* total time to optimize jit code
 	int64		jit_emission_count; /* number of times emission time has been
-									 * > 0 */
-	double		jit_emission_time;	/* total time to emit jit code */
+									 * > 0
+	double		jit_emission_time;	/* total time to emit jit code
 
 	/*
 	 * Variables for local entry. The values to be passed to pgsm_update_entry
 	 * from pgsm_store.
-	 */
-	instr_time	instr_generation_counter;	/* generation counter */
-	instr_time	instr_inlining_counter; /* inlining counter */
-	instr_time	instr_deform_counter;	/* deform counter */
-	instr_time	instr_optimization_counter; /* optimization counter */
-	instr_time	instr_emission_counter; /* emission counter */
+	
+	instr_time	instr_generation_counter;	/* generation counter
+	instr_time	instr_inlining_counter; /* inlining counter
+	instr_time	instr_deform_counter;	/* deform counter
+	instr_time	instr_optimization_counter; /* optimization counter
+	instr_time	instr_emission_counter; /* emission counter
 } JitInfo;
-
-typedef struct SysInfo
+*/
+/*typedef struct SysInfo
 {
-	double		utime;			/* user cpu time */
-	double		stime;			/* system cpu time */
+	double		utime;			/* user cpu time
+	double		stime;			/* system cpu time
 } SysInfo;
-
-typedef struct Wal_Usage
+*/
+/*typedef struct Wal_Usage
 {
-	int64		wal_records;	/* # of WAL records generated */
-	int64		wal_fpi;		/* # of WAL full page images generated */
-	uint64		wal_bytes;		/* total amount of WAL bytes generated */
-	int64		wal_buffers_full;	/* # of times the WAL buffers became full */
+	int64		wal_records;	/* # of WAL records generated
+	int64		wal_fpi;		/* # of WAL full page images generated
+	uint64		wal_bytes;		/* total amount of WAL bytes generated
+	int64		wal_buffers_full;	/* # of times the WAL buffers became full
 } Wal_Usage;
+*/
 
-typedef struct Counters
+/*typedef struct Counters
 {
 	Calls		calls;
 	QueryInfo	info;
@@ -327,12 +329,13 @@ typedef struct Counters
 	ErrorInfo	error;
 	Wal_Usage	walusage;
 	int			resp_calls[MAX_RESPONSE_BUCKET];	/* execution time's in
-													 * msec */
+													 * msec 
 	int64		parallel_workers_to_launch; /* # of parallel workers planned
-											 * to be launched */
+											 * to be launched 
 	int64		parallel_workers_launched;	/* # of parallel workers actually
-											 * launched */
+											 * launched 
 } Counters;
+*/
 
 /* Some global structure to get the cpu usage, really don't like the idea of global variable */
 

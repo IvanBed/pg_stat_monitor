@@ -38,6 +38,11 @@ bool		pgsm_enable_pgsm_query_id;
 int			pgsm_track;
 static int	pgsm_overflow_target;	/* Not used since 2.0 */
 
+// pg_stat_per_query
+bool        pgsm_collect_per_query_statistics;
+int         pgsm_log_min_duration;
+int         pgsm_log_parameter_max_length;
+
 /* Check hooks to ensure histogram_min < histogram_max */
 static bool check_histogram_min(double *newval, void **extra, GucSource source);
 static bool check_histogram_max(double *newval, void **extra, GucSource source);
@@ -287,6 +292,49 @@ init_guc(void)
 							 NULL	/* show_hook */
 		);
 
+    // pg_stat_per_query GUC part
+
+	DefineCustomBoolVariable("pg_stat_monitor.pgsm_collect_per_query_statistics", /* name */
+							 "Use switch on the per query statistics tracking.",	/* short_desc */
+							 NULL,	/* long_desc */
+							 &pgsm_collect_per_query_statistics,	/* value address */
+							 false, /* boot value */
+							 PGC_USERSET,	/* context */
+							 0, /* flags */
+							 NULL,	/* check_hook */
+							 NULL,	/* assign_hook */
+							 NULL	/* show_hook */
+		);
+
+    DefineCustomIntVariable("pg_stat_monitor.pgsm_log_min_duration",
+                             "Sets the minimum execution time above which query info will be stored.",
+                             "-1 disables logging queries. 0 means log all queries.",
+                             &pgsm_log_min_duration,
+                             -1,
+                             -1, INT_MAX,
+                             PGC_SUSET,
+                             GUC_UNIT_MS,
+                             NULL,
+                             NULL,
+                             NULL
+		);
+    // to think over that GUC constant
+    DefineCustomIntVariable("pg_stat_monitor.pgsm_log_parameter_max_length",
+                             "Sets the maximum length of query parameter values to log.",
+                             "-1 means log values in full.",
+                             &pgsm_log_parameter_max_length,
+                             -1,
+                             -1, INT_MAX,
+                             PGC_SUSET,
+                             GUC_UNIT_BYTE,
+                             NULL,
+                             NULL,
+                             NULL
+		);
+
+// add 
+// db name, default postgres
+// worker timeout, default 100000
 }
 
 /* Maximum value must be greater or equal to minimum + 1.0 */

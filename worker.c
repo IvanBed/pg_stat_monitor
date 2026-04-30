@@ -5,7 +5,15 @@ PG_MODULE_MAGIC;
 static pgsmPerQueryLocalStorage  pgsm_per_query_local_storage;
 static Latch                    *latch         = NULL;
 
-bool get_shmem_latch()
+static bool get_shmem_latch(void);
+static bool get_shmem_storage(void);
+static void attach_shmem(void);
+static dsa_area *get_dsa_area(void);
+static pgsmPerQuerySharedStorage * get_per_query_shared_storage(void);
+
+
+static bool 
+get_shmem_latch()
 {
     bool found;
 
@@ -17,7 +25,8 @@ bool get_shmem_latch()
     return found;
 }
 
-bool get_shmem_storage()
+static bool 
+get_shmem_storage()
 {
     bool found;
     LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
@@ -28,7 +37,8 @@ bool get_shmem_storage()
     return found;
 }
 
-void attach_shmem(void)
+static void 
+attach_shmem(void)
 {
     MemoryContext oldcontext;
 
@@ -43,15 +53,26 @@ void attach_shmem(void)
 	MemoryContextSwitchTo(oldcontext);
 }
 
-dsa_area *get_dsa_area_for_text(void)
+static dsa_area *
+get_dsa_area(void)
 {
 	attach_shmem();
 	return pgsm_per_query_local_storage.dsa;
 }
 
-void write_data_to_rel()
+static pgsmPerQuerySharedStorage *
+get_per_query_shared_storage(void)
 {
-    pgsmPerQuerySharedStorage *storage;
+	return pgsm_per_query_local_storage.shared_storage;
+}
+
+static void 
+write_data_to_rel()
+{
+    pgsmPerQuerySharedStorage *shared_storage;
+    size_t ret_arr_size;
+    int *ret;
+    MemoryContext oldcontext;
 
     //Statistics vars declaration
     dsa_area    *dsa;
@@ -60,65 +81,67 @@ void write_data_to_rel()
     char	     *query_text;
     char	     *plan_info_text;    
     
-    storage = pgsm_per_query_local_storage.shared_storage;
+    shared_storage = get_per_query_shared_storage();
+    dsa            = get_dsa_area();
     
-    MemoryContext oldcontext;
-    size_t ret_arr_size = sizeof(int) * storage->store_capacity;
-    
+    // Use TopMemoryContext to avoid mem leaks
     oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-    int *ret            = (int*) palloc(ret_arr_size);
+    
+    ret_arr_size   = sizeof(int) * shared_storage->store_capacity;
+    ret            = (int*) palloc(ret_arr_size);
 
     if (!ret)
     {
         elog(WARNING, "Could not allocate memort for return codes array"); 
     }
+
     memset(ret, 0, ret_arr_size);
     
     SetCurrentStatementStartTimestamp();
-    
     StartTransactionCommand();
     SPI_connect();
     PushActiveSnapshot(GetTransactionSnapshot());
 
-    LWLockAcquire(storage->lock, LW_SHARED);
-    
-
-    dsa = get_dsa_area_for_text();
+    LWLockAcquire(shared_storage->lock, LW_SHARED);
 	
     query_text    = NULL;
-    lan_info_text = NULL;
+    plan_info_text = NULL;
 
-    for(size_t i = 0; i < storage->store_capacity; i++)
+    for(size_t i = 0; i < shared_storage->store_capacity; i++)
     {
-        if (storage->free_space_bitmap[i] == ALLOCATED)
+        if (shared_storage->free_space_bitmap[i] == ALLOCATED)
         {
             StringInfoData buf;
             initStringInfo(&buf);
             
-            text = dsa_get_address(dsa, storage->store[i].test_text.text_pos);
+            query_text = dsa_get_address(dsa, shared_storage->store[i].query_text.query_pos);
             // make a query to db
-            //appendStringInfo(&buf, "INSERT INTO %s (id, name) VALUES (%d, '%s')", TABLE_NAME, storage->store[i].id, text);
+            //appendStringInfo(&buf, "INSERT INTO %s (id, name) VALUES (%d, '%s')", TABLE_NAME, shared_storage->store[i].id, query_text);
             
             ret[i] = SPI_execute(buf.data, false, 0);
             pfree(buf.data);
         }
     }
 
-    LWLockRelease(storage->lock);
+    LWLockRelease(shared_storage->lock);
 
     PopActiveSnapshot();
     SPI_finish();
     CommitTransactionCommand();
     
     // function from pg_stat_per_query
-    cleanup_storage(local_storage, ret);
+    pgsm_cleanup_storage(shared_storage, dsa, ret);
     
     pfree(ret);
+
     MemoryContextSwitchTo(oldcontext);
 }
 
-PGDLLEXPORT void worker_main(Datum main_arg)
+PGDLLEXPORT void 
+worker_main(Datum main_arg)
 {
+    // using args i can pass a db name
+    
     pqsignal(SIGHUP, SignalHandlerForConfigReload);
     pqsignal(SIGTERM, die);
     BackgroundWorkerUnblockSignals();
@@ -126,23 +149,22 @@ PGDLLEXPORT void worker_main(Datum main_arg)
     /*add error handling*/
     if (get_shmem_latch())
     {
-
+        //elog(FATAL, "Please use shared_preload_libraries");
     }
 
     if (get_shmem_storage())
     {
-
+        //elog(FATAL, "Please use shared_preload_libraries");
     }
 
-    // Подумать как прокинуть OID db динамически
     BackgroundWorkerInitializeConnection("postgres", NULL, 0);
 
-    // Передает право владения лэтчем из разделяемой памяти воркеру
+    // It gives ownership of a shared memory latch to the worker
     OwnLatch(latch);
     
     for (;;)
     {
-        // Ожидание будет до сигнала от основного процесса
+        // wait the signal or timeout
         (void) WaitLatch(latch, WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH, 10000, PG_WAIT_EXTENSION);
         ResetLatch(latch);
 
@@ -158,7 +180,8 @@ PGDLLEXPORT void worker_main(Datum main_arg)
     }
 }
 
-void _PG_init()
+void 
+_PG_init()
 {
     if(!process_shared_preload_libraries_in_progress)
         elog(FATAL, "Please use shared_preload_libraries");

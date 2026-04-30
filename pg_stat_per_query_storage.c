@@ -89,7 +89,6 @@ PGDLLEXPORT void cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_
     }
 
     LWLockRelease(shared_storage->lock);
-
 }
 /*
 static void

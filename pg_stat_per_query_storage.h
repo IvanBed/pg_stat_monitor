@@ -263,6 +263,6 @@ typedef struct pgsmPerQueryLocalStorage
 //args: query info in enrty struct and local storage, that contens shared part and locally initialized dsa
 
 extern bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry);
-extern void pgsm_cleanup_storage(pgsmPerQueryLocalStorage *, int const *);
+extern void pgsm_cleanup_storage(pgsmPerQuerySharedStorage *, dsa_area *dsa, int const *);
 
 #endif

@@ -1,67 +1,56 @@
 #include "pg_stat_per_query_storage.h"
-/*
+
 PG_MODULE_MAGIC;
 
-static int find_pos(Storage *storage)
+static int find_pos(pgsmPerQuerySharedStorage *shared_storage)
 {
     int res_pos = STORAGE_FULL;
-    LWLockAcquire(storage->lock, LW_SHARED);
-    for (size_t i = 0; i < storage->store_capacity; i++)
+    LWLockAcquire(shared_storage->lock, LW_SHARED);
+    for (size_t i = 0; i < shared_storage->store_capacity; i++)
     {
-        if (storage->free_space_bitmap[i] == FREE)
+        if (shared_storage->free_space_bitmap[i] == FREE)
         {
             res_pos = (int) i;
             break;
         }
     }
-    LWLockRelease(storage->lock);
+    LWLockRelease(shared_storage->lock);
     return res_pos;
 }
-
-static void add_el_internal(Entry *entry, size_t pos, Storage *storage, dsa_area *local_dsa)
+static void bool add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry, size_t pos)
 {
     if (!entry)
     {
         return;
     }
 
-    char	   *text_buff;
-    dsa_pointer text_dsa_pointer;
+    char	   *query_buff;
+    dsa_pointer dsa_query_pointer;
     
-    size_t      text_len;
-    char       *text;
+    size_t      query_len;
+    char       *query_text;
     
-    elog(NOTICE, "STEP 1: get text from entry");  
-    text     = entry->test_text.text_pointer;
-    text_len = strlen(text);
-    //elog(NOTICE, "text %s len %d", text, text_len); 
+    query_text = entry->query_text.query_pointer;
+    query_len  = strlen(query_text); 
 
-    LWLockAcquire(storage->lock, LW_EXCLUSIVE);
+    LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
 
-    elog(NOTICE, "STEP 2: init dsa area");  
-
-    elog(NOTICE, "STEP 2: dsa_allocate_extended");  
-    text_dsa_pointer = dsa_allocate_extended(local_dsa, text_len + 1,  DSA_ALLOC_ZERO);
-    elog(NOTICE, "STEP 2: end"); 
-    if (DsaPointerIsValid(text_dsa_pointer))
+    dsa_query_pointer = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
+    if (DsaPointerIsValid(dsa_query_pointer))
     {
-        elog(NOTICE, "STEP 3: store text in dsa area");  
-        text_buff = dsa_get_address(local_dsa, text_dsa_pointer);
-        memcpy(text_buff, text, text_len);
-        text_buff[text_len] = 0;
-        entry->test_text.text_pos = text_dsa_pointer;
+        query_buff = dsa_get_address(dsa, dsa_query_pointer);
+        memcpy(query_buff, query_text, query_len);
+        query_buff[query_len] = 0;
+        entry->query_text.query_pos = dsa_query_pointer;
     } 
-    elog(NOTICE, "STEP 4: copy entry struct into shared mem"); 
 
-    //elog(NOTICE, "MEM INFO: cur mem %ld",  dsa_get_total_size(local_dsa)); 
-    //elog(NOTICE, "TEST");  
-    memcpy(storage->store + pos, entry, sizeof(Entry));       
-    storage->free_space_bitmap[pos] = ALLOCATED;
+    memcpy(shared_storage->store + pos, entry, sizeof(Entry));       
+    shared_storage->free_space_bitmap[pos] = ALLOCATED;
 
     LWLockRelease(storage->lock);
 }
 
-PGDLLEXPORT bool add_el(Entry *entry, Storage *storage, dsa_area *local_dsa)
+PGDLLEXPORT bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry);
 {
     if (!entry)
         return false;
@@ -72,7 +61,7 @@ PGDLLEXPORT bool add_el(Entry *entry, Storage *storage, dsa_area *local_dsa)
     elog(NOTICE, "pos %ld", pos);
     if (pos != STORAGE_FULL)
     {
-        add_el_internal(entry, pos, storage, local_dsa);
+        add_el_internal(shared_storage, dsa, entry, pos);
         return true;
     }
     else
@@ -81,41 +70,38 @@ PGDLLEXPORT bool add_el(Entry *entry, Storage *storage, dsa_area *local_dsa)
     }
 }
 
-PGDLLEXPORT void cleanup_storage(Storage *storage, dsa_area *local_dsa, int const *ret)
+PGDLLEXPORT void cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, int const *ret)
 {
-    dsa_pointer dsa_text_pointer;
-    LWLockAcquire(storage->lock, LW_EXCLUSIVE);
+    dsa_pointer dsa_query_pointer;
+    LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
     
-    for (size_t i = 0; i < storage->store_capacity; i++)
+    for (size_t i = 0; i < shared_storage->store_capacity; i++)
     {
         // Удаляем строку из динамической разделяемой памяти и помечаем позиции в store как свободную.
         if (ret[i] == SPI_OK_INSERT)
         {
-            dsa_text_pointer = (storage->store + i)->test_text.text_pos;
-            if(DsaPointerIsValid(local_dsa))
-                dsa_free(local_dsa, dsa_text_pointer);
+            dsa_query_pointer = (shared_storage->store + i)->query_text.query_pos;
+            if(DsaPointerIsValid(dsa))
+                dsa_free(dsa, dsa_query_pointer);
             
-            storage->free_space_bitmap[i] = FREE;
+            shared_storage->free_space_bitmap[i] = FREE;
         }
     }
 
-    LWLockRelease(storage->lock);
+    LWLockRelease(shared_storage->lock);
 
 }
 
 static void
-pgsm_lock_aquire(pgsmSharedState *pgsm, LWLockMode mode)
+pgsm_lock_aquire(pgsmPerQuerySharedStorage *shared_storage, LWLockMode mode)
 {
-	/* Disable error capturing while holding the lock to avoid deadlocks
-	LWLockAcquire(pgsm->lock, mode);
-	disable_error_capture = true;
+	LWLockAcquire(shared_storage->lock, mode);
+	//disable_error_capture = true;
 }
 
 static void
-pgsm_lock_release(pgsmSharedState *pgsm)
+pgsm_lock_release(pgsmPerQuerySharedStorage *shared_storage)
 {
-	disable_error_capture = false;
+	//disable_error_capture = false;
 	LWLockRelease(pgsm->lock);
 }
-
-*/

@@ -61,6 +61,13 @@
 #include "utils/palloc.h"
 
 #include "pg_stat_per_query_storage.h"
+#include "postmaster/interrupt.h"
+#include "storage/latch.h"  
+// check whether it is necessary or nor
+#include "storage/proc.h"
+
+
+
 
 #define MAX_BACKEND_PROCESES (MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts)
 #define  IntArrayGetTextDatum(x,y) intarray_get_datum(x,y)

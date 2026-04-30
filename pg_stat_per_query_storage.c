@@ -1,8 +1,5 @@
 #include "pg_stat_per_query_storage.h"
-
-
 /*
-
 PG_MODULE_MAGIC;
 
 static int find_pos(Storage *storage)
@@ -105,4 +102,20 @@ PGDLLEXPORT void cleanup_storage(Storage *storage, dsa_area *local_dsa, int cons
     LWLockRelease(storage->lock);
 
 }
+
+static void
+pgsm_lock_aquire(pgsmSharedState *pgsm, LWLockMode mode)
+{
+	/* Disable error capturing while holding the lock to avoid deadlocks
+	LWLockAcquire(pgsm->lock, mode);
+	disable_error_capture = true;
+}
+
+static void
+pgsm_lock_release(pgsmSharedState *pgsm)
+{
+	disable_error_capture = false;
+	LWLockRelease(pgsm->lock);
+}
+
 */

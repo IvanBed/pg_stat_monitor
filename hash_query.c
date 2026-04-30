@@ -18,7 +18,14 @@
 #include "nodes/pg_list.h"
 #include "pg_stat_monitor.h"
 
-static pgsmLocalState pgsmStateLocal;
+static pgsmLocalState           pgsmStateLocal;
+
+static pgsmPerQueryLocalStorage pgsm_per_query_local_storage;
+
+static Latch                    *latch         = NULL;
+
+/*I guess it is a part where i can place my storage structs var*/
+
 static PGSM_HASH_TABLE_HANDLE pgsm_create_bucket_hash(pgsmSharedState *pgsm, dsa_area *dsa);
 static Size pgsm_get_shared_area_size(void);
 static void InitializeSharedState(pgsmSharedState *pgsm);
@@ -87,6 +94,140 @@ pgsm_get_shared_area_size(void)
 	sz = add_size(sz, pgsm_query_area_size());
 #endif
 	return sz;
+}
+
+/* There will be a part of pg_stat_per_query, a few funcs that init the storage in the shared memory and init the dsa area, 
+   those funcs will be called only if the guc flag pgsm_collect_per_query_statistics is true. 
+   
+   I have to think about where I will place the static var of the storage in this object or maybe in pg_stat_monitor.
+   There is an implemented way where the storage is placed here and some getters to the field of the storage are defined. 
+   It is good. In my storage.so no states are contaned only funcs.
+*/
+
+static void 
+request_shmem_shared_latch(void)
+{
+    RequestAddinShmemSpace(MAXALIGN(sizeof(Latch)));
+    RequestNamedLWLockTranche("shmem_shared_latch", 1);
+}
+
+static void 
+request_shmem_storage(void)
+{
+    RequestAddinShmemSpace(MAXALIGN(sizeof(pgsmPerQueryLocalStorage)));
+    RequestNamedLWLockTranche("shmem_storage_chunk", 1);
+}
+
+static void 
+init_shared_latch_if_needed(void)
+{
+    bool found;
+
+    LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+
+    latch = ShmemInitStruct("Latch", sizeof(Latch), &found);
+    if(!found) 
+    {
+        InitSharedLatch(latch); 
+        ResetLatch(latch);    
+    }
+    LWLockRelease(AddinShmemInitLock);
+}
+
+static void 
+init_storage_shmem_if_needed(void)
+{
+    pgsmPerQuerySharedStorage *shared_storage;
+
+    pgsm_per_query_local_storage.dsa            = NULL;
+	pgsm_per_query_local_storage.shared_storage = NULL;
+
+    bool found;
+    LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+
+    shared_storage = ShmemInitStruct("PerQuerySharedStorage", sizeof(pgsmPerQuerySharedStorage), &found);
+    if(!found) 
+	{
+        dsa_area   *dsa;
+        char *p = (char *) storage;
+        
+        shared_storage->store_capacity    = STORE_CAPACITY;
+        shared_storage->store             = (Entry*) ShmemAlloc(sizeof(Entry) * STORE_CAPACITY);
+        shared_storage->free_space_bitmap = (uint8_t*) ShmemAlloc(sizeof(uint8_t) * STORE_CAPACITY);
+        shared_storage->lock              = &(GetNamedLWLockTranche("shmem_storage_chunk"))->lock;
+        
+		SpinLockInit(&shared_storage->mutex);
+
+        p += MAXALIGN(sizeof(Storage));
+		shared_storage->raw_dsa_area = p;
+		
+        dsa = dsa_create_in_place(shared_storage->raw_dsa_area, TEXT_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
+		
+        dsa_pin(dsa);
+		dsa_set_size_limit(dsa, TEXT_STORE_MAX_SIZE);
+         
+        dsa_detach(dsa);
+
+        memset(shared_storage->store, 0, sizeof(Entry) * STORE_CAPACITY);
+        memset(shared_storage->free_space_bitmap, 0, sizeof(uint8_t) * STORE_CAPACITY);
+		
+		pgsm_per_query_local_storage.shared_storage = shared_storage;
+
+		pgsm_per_query_local_storage.pgsm_mem_cxt = AllocSetContextCreate(TopMemoryContext,
+															"pg_stat_monitor per query store",
+															ALLOCSET_DEFAULT_SIZES);
+    }
+
+    LWLockRelease(AddinShmemInitLock);
+}
+
+void 
+pgsm_attach_shmem_per_query_storage(void)
+{  
+    MemoryContext oldcontext;
+
+	if (pgsm_per_query_local_storage.dsa)
+		return;
+    
+	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+
+	pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
+	dsa_pin_mapping(pgsm_per_query_local_storage.dsa);
+
+	MemoryContextSwitchTo(oldcontext);
+}
+// getters
+dsa_area *
+get_dsa_area_for_text(void)
+{
+	pgsm_attach_shmem_per_query_storage();
+	return pgsm_per_query_local_storage.dsa;
+}
+
+pgsmPerQuerySharedStorage *
+get_per_query_shared_storage(void)
+{
+	return pgsm_per_query_local_storage.shared_storage;
+}
+
+MemoryContext
+get_per_query_local_mem_context(void)
+{
+	return pgsm_per_query_local_storage.pgsm_mem_cxt;
+}
+
+void 
+pgsm_per_query_startup(void)
+{
+    init_shared_latch_if_needed();
+    init_storage_shmem_if_needed();
+}
+
+void 
+pgsm_per_query_request_shmem(void)
+{
+    request_shmem_shared_latch();
+    request_shmem_storage();
 }
 
 void

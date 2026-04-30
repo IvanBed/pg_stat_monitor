@@ -332,9 +332,11 @@ init_guc(void)
                              NULL
 		);
 
-// add 
+// add some constants
 // db name, default postgres
 // worker timeout, default 100000
+// storage count default 100
+// dsa max size 1024 * 1024
 }
 
 /* Maximum value must be greater or equal to minimum + 1.0 */

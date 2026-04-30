@@ -2,7 +2,7 @@
 
 PG_MODULE_MAGIC;
 
-static pgsmPerQueryLocalStorage *local_storage = NULL;
+static pgsmPerQueryLocalStorage  pgsm_per_query_local_storage;
 static Latch                    *latch         = NULL;
 
 bool get_shmem_latch()
@@ -22,7 +22,7 @@ bool get_shmem_storage()
     bool found;
     LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
-    local_storage->shared_storage = ShmemInitStruct("SharedStorage", sizeof(pgsmPerQuerySharedStorage), &found);
+    pgsm_per_query_local_storage.shared_storage = ShmemInitStruct("PerQuerySharedStorage", sizeof(pgsmPerQuerySharedStorage), &found);
 
     LWLockRelease(AddinShmemInitLock);
     return found;
@@ -32,13 +32,13 @@ void attach_shmem(void)
 {
     MemoryContext oldcontext;
 
-	if (local_storage->dsa)
+	if (pgsm_per_query_local_storage.dsa)
 		return;
     
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
-	local_storage->dsa = dsa_attach_in_place(local_storage->shared_storage->raw_dsa_area, NULL);
-	dsa_pin_mapping(local_storage->dsa);
+	pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
+	dsa_pin_mapping(pgsm_per_query_local_storage.dsa);
 
 	MemoryContextSwitchTo(oldcontext);
 }
@@ -46,7 +46,7 @@ void attach_shmem(void)
 dsa_area *get_dsa_area_for_text(void)
 {
 	attach_shmem();
-	return local_storage->dsa;
+	return pgsm_per_query_local_storage.dsa;
 }
 
 void write_data_to_rel()
@@ -62,7 +62,7 @@ void write_data_to_rel()
     
     
     
-    storage = local_storage->shared_storage;
+    storage = pgsm_per_query_local_storage.shared_storage;
     
     MemoryContext oldcontext;
     size_t ret_arr_size = sizeof(int) * storage->store_capacity;
@@ -125,8 +125,17 @@ PGDLLEXPORT void worker_main(Datum main_arg)
     pqsignal(SIGTERM, die);
     BackgroundWorkerUnblockSignals();
 
-    get_shmem_latch();
-    get_shmem_storage();
+    /*add error handling*/
+    if (get_shmem_latch())
+    {
+
+    }
+
+    if (get_shmem_storage())
+    {
+
+    }
+
     // Подумать как прокинуть OID db динамически
     BackgroundWorkerInitializeConnection("postgres", NULL, 0);
 
@@ -146,7 +155,7 @@ PGDLLEXPORT void worker_main(Datum main_arg)
             ConfigReloadPending = false;
             ProcessConfigFile(PGC_SIGHUP);
         }
-        write_data_to_rel();
+        //write_data_to_rel();
 
     }
 }

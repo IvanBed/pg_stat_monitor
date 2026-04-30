@@ -275,6 +275,24 @@ static bool disable_error_capture = false;
 static void pgsm_lock_aquire(pgsmSharedState *pgsm, LWLockMode mode);
 static void pgsm_lock_release(pgsmSharedState *pgsm);
 
+/*pg_stat_per_query declaration part*/
+
+static pgsmPerQueryEntry *pgsm_crete_per_query_entry(/*statistics vars list*/);
+static pgsmPerQueryEntry *pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
+static void init_worker(BackgroundWorker *worker);
+static void pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry)
+static bool check_thresholds();
+
+/* part from has_query.c, shared memory init func and getters */
+
+// i should rename this func, i guess there will be some mistakes with that due to no information which the dsa it is
+dsa_area * get_dsa_area_for_text(void);
+pgsmPerQuerySharedStorage *get_per_query_shared_storage(void);
+MemoryContext get_per_query_local_mem_context(void);
+
+void pgsm_per_query_request_shmem(void);
+void pgsm_per_query_startup(void);
+
 /*
  * Module load callback
  */
@@ -319,6 +337,12 @@ _PG_init(void)
 	shmem_request_hook = pgsm_shmem_request;
 #else
 	request_additional_shared_resources();
+    //important part!
+	if (pgsm_collect_per_query_statistics)
+	{
+        pgsm_per_query_request_shmem();
+	}	
+
 #endif
 	prev_shmem_startup_hook = shmem_startup_hook;
 	shmem_startup_hook = pgsm_shmem_startup;
@@ -345,6 +369,14 @@ _PG_init(void)
 	nested_query_txts = (char **) malloc(sizeof(char *) * max_stack_depth);
 
 	system_init = true;
+
+
+    /* Init worker part*/
+    BackgroundWorker worker;
+    init_worker(&worker);
+
+    RegisterBackgroundWorker(&worker); 
+
 }
 
 /*
@@ -360,6 +392,10 @@ pgsm_shmem_startup(void)
 		prev_shmem_startup_hook();
 
 	pgsm_startup();
+
+	if (pgsm_collect_per_query_statistics)
+        pgsm_per_query_startup();
+
 }
 
 static void
@@ -394,6 +430,14 @@ pgsm_shmem_request(void)
 	if (prev_shmem_request_hook)
 		prev_shmem_request_hook();
 	request_additional_shared_resources();
+
+ /*pg_per_query_part*/
+    
+	if (pgsm_collect_per_query_statistics)
+	{
+        pgsm_per_query_request_shmem();
+	}
+
 }
 #endif
 
@@ -709,6 +753,10 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	PlanInfo   *plan_ptr = NULL;
 	pgsmEntry  *entry = NULL;
 
+    // per query part
+    pgsmPerQueryEntry *per_query_entry = NULL;
+    bool               res;
+
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
 	{
@@ -798,6 +846,42 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 
 		pgsm_store(entry);
 	}
+
+	//Per query part here
+    /*
+	if (collect_per_query && queryId != INT64CONST(0) && pgsm_enabled(nesting_level) && check_thresholds(queryDesc->totaltime, other args, i will add it futher))
+	{
+	    per_query_entry = pgsm_crete_per_query_entry(
+		                                            LONG LIST OF STATS
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+													);
+	    res = pgsm_add_per_query_entry(per_query_entry);
+	    if (!res)
+		{
+		    size_t counter = FIXED COUNT OF ITERS TO AVOID ENDLESS LOOP
+			
+			set latch and sleep for a while
+			while(i < counter) {sleep and i++}
+ 			
+		}
+	    free all allocated data within the entry, it will be query text, lock info text and plan info text
+		pgsm_destroy_per_query_entry(per_query_entry);
+	}
+	
+	*/
 
 	if (prev_ExecutorEnd)
 		prev_ExecutorEnd(queryDesc);
@@ -4077,4 +4161,21 @@ pgsm_lock_release(pgsmSharedState *pgsm)
 {
 	disable_error_capture = false;
 	LWLockRelease(pgsm->lock);
+}
+
+/*Per query funcs definition part*/
+
+void init_worker(BackgroundWorker *worker)
+{
+    memset(worker, 0, sizeof(*worker));
+    
+    (*worker).bgw_flags = BGWORKER_SHMEM_ACCESS | BGWORKER_BACKEND_DATABASE_CONNECTION;
+    (*worker).bgw_start_time = BgWorkerStart_RecoveryFinished;
+    (*worker).bgw_restart_time = BGW_NEVER_RESTART;
+    
+    sprintf((*worker).bgw_library_name, "pgsm_worker");
+    sprintf((*worker).bgw_function_name, "worker_main");
+    (*worker).bgw_notify_pid = 0;
+    snprintf((*worker).bgw_name, BGW_MAXLEN, "pgsm_worker pgsm_worker %d", 1);
+    snprintf((*worker).bgw_type, BGW_MAXLEN, "pgsm_worker");
 }

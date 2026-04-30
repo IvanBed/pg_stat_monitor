@@ -14,6 +14,11 @@
 #include "nodes/pg_list.h"
 #include "nodes/memnodes.h"
 
+#include "datatype/timestamp.h"
+#include "storage/spin.h"
+
+#include "executor/instrument.h"
+
 // it will be guc vars too
 #define TABLE_NAME "test_table"
 #define STORE_CAPACITY 25
@@ -257,7 +262,7 @@ typedef struct pgsmPerQueryLocalStorage
 
 //args: query info in enrty struct and local storage, that contens shared part and locally initialized dsa
 
-extern bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry);
+extern bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry);
 extern void pgsm_cleanup_storage(pgsmPerQueryLocalStorage *, int const *);
 
 #endif

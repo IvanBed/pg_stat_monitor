@@ -17,7 +17,7 @@ static int find_pos(pgsmPerQuerySharedStorage *shared_storage)
     LWLockRelease(shared_storage->lock);
     return res_pos;
 }
-static void bool add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry, size_t pos)
+static void add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
 {
     if (!entry)
     {
@@ -44,21 +44,21 @@ static void bool add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_
         entry->query_text.query_pos = dsa_query_pointer;
     } 
 
-    memcpy(shared_storage->store + pos, entry, sizeof(Entry));       
+    memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
     shared_storage->free_space_bitmap[pos] = ALLOCATED;
 
-    LWLockRelease(storage->lock);
+    LWLockRelease(shared_storage->lock);
 }
 
-PGDLLEXPORT bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry);
+PGDLLEXPORT bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry)
 {
     if (!entry)
         return false;
 
-    elog(NOTICE, "add_el NEW!");    
+    //elog(NOTICE, "add_el NEW!");    
     
-    int pos = find_pos(storage);
-    elog(NOTICE, "pos %ld", pos);
+    int pos = find_pos(shared_storage);
+    //elog(NOTICE, "pos %ld", pos);
     if (pos != STORAGE_FULL)
     {
         add_el_internal(shared_storage, dsa, entry, pos);
@@ -91,7 +91,7 @@ PGDLLEXPORT void cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_
     LWLockRelease(shared_storage->lock);
 
 }
-
+/*
 static void
 pgsm_lock_aquire(pgsmPerQuerySharedStorage *shared_storage, LWLockMode mode)
 {
@@ -103,5 +103,6 @@ static void
 pgsm_lock_release(pgsmPerQuerySharedStorage *shared_storage)
 {
 	//disable_error_capture = false;
-	LWLockRelease(pgsm->lock);
+	LWLockRelease(shared_storage->lock);
 }
+*/

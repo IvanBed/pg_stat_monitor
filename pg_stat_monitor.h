@@ -17,7 +17,7 @@
 #ifndef __PG_STAT_MONITOR_H__
 #define __PG_STAT_MONITOR_H__
 
-#include "postgres.h"
+//#include "postgres.h"
 
 #include <arpa/inet.h>
 #include <math.h>
@@ -28,17 +28,17 @@
 #include <sys/resource.h>
 
 #include "lib/dshash.h"
-#include "utils/dsa.h"
+//#include "utils/dsa.h"
 
 #include "access/hash.h"
 #include "catalog/pg_authid.h"
-#include "executor/instrument.h"
+//#include "executor/instrument.h"
 #include "common/ip.h"
 #include "jit/jit.h"
 #include "funcapi.h"
 #include "access/twophase.h"
 #include "mb/pg_wchar.h"
-#include "miscadmin.h"
+//#include "miscadmin.h"
 #include "optimizer/planner.h"
 #include "postmaster/bgworker.h"
 #include "parser/analyze.h"
@@ -48,25 +48,24 @@
 #include "pgstat.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
-#include "storage/spin.h"
+//#include "storage/spin.h"
 #include "tcop/utility.h"
 #include "utils/acl.h"
-#include "utils/builtins.h"
-#include "utils/memutils.h"
-#include "utils/timestamp.h"
+//#include "utils/builtins.h"
+//#include "utils/memutils.h"
+//#include "utils/timestamp.h"
 #include "utils/lsyscache.h"
 #include "utils/guc.h"
 #include "utils/guc_tables.h"
-#include "utils/memutils.h"
+//#include "utils/memutils.h"
 #include "utils/palloc.h"
 
+//pg_stat_per_query include
 #include "pg_stat_per_query_storage.h"
 #include "postmaster/interrupt.h"
 #include "storage/latch.h"  
 // check whether it is necessary or nor
 #include "storage/proc.h"
-
-
 
 
 #define MAX_BACKEND_PROCESES (MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts)

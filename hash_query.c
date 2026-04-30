@@ -133,7 +133,7 @@ init_shared_latch_if_needed(void)
     }
     LWLockRelease(AddinShmemInitLock);
 }
-
+// STORE_CAPACITY AND DSA_STORE_MAX_SIZE to GUC!!!
 static void 
 init_storage_shmem_if_needed(void)
 {
@@ -149,26 +149,26 @@ init_storage_shmem_if_needed(void)
     if(!found) 
 	{
         dsa_area   *dsa;
-        char *p = (char *) storage;
+        char *p = (char *) shared_storage;
         
         shared_storage->store_capacity    = STORE_CAPACITY;
-        shared_storage->store             = (Entry*) ShmemAlloc(sizeof(Entry) * STORE_CAPACITY);
+        shared_storage->store             = (pgsmPerQueryEntry*) ShmemAlloc(sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         shared_storage->free_space_bitmap = (uint8_t*) ShmemAlloc(sizeof(uint8_t) * STORE_CAPACITY);
         shared_storage->lock              = &(GetNamedLWLockTranche("shmem_storage_chunk"))->lock;
         
 		SpinLockInit(&shared_storage->mutex);
 
-        p += MAXALIGN(sizeof(Storage));
+        p += MAXALIGN(sizeof(pgsmPerQuerySharedStorage));
 		shared_storage->raw_dsa_area = p;
 		
-        dsa = dsa_create_in_place(shared_storage->raw_dsa_area, TEXT_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
+        dsa = dsa_create_in_place(shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
 		
         dsa_pin(dsa);
-		dsa_set_size_limit(dsa, TEXT_STORE_MAX_SIZE);
+		dsa_set_size_limit(dsa, DSA_STORE_MAX_SIZE);
          
         dsa_detach(dsa);
 
-        memset(shared_storage->store, 0, sizeof(Entry) * STORE_CAPACITY);
+        memset(shared_storage->store, 0, sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         memset(shared_storage->free_space_bitmap, 0, sizeof(uint8_t) * STORE_CAPACITY);
 		
 		pgsm_per_query_local_storage.shared_storage = shared_storage;

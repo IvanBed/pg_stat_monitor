@@ -1485,16 +1485,16 @@ pgsm_create_per_query_entry(int64_t query_id,
 
 	if (sys_info)
 	{
-		entry->counters.sysinfo.utime = sys_info->utime;
-		entry->counters.sysinfo.stime = sys_info->stime;
+		per_query_entry->counters.sysinfo.utime = sys_info->utime;
+		per_query_entry->counters.sysinfo.stime = sys_info->stime;
 	}
 	if (walusage)
 	{
-		entry->counters.walusage.wal_records = walusage->wal_records;
-		entry->counters.walusage.wal_fpi = walusage->wal_fpi;
-		entry->counters.walusage.wal_bytes = walusage->wal_bytes;
+		per_query_entry->counters.walusage.wal_records = walusage->wal_records;
+		per_query_entry->counters.walusage.wal_fpi = walusage->wal_fpi;
+		per_query_entry->counters.walusage.wal_bytes = walusage->wal_bytes;
 #if PG_VERSION_NUM >= 180000
-		entry->counters.walusage.wal_buffers_full = walusage->wal_buffers_full;
+		per_query_entry->counters.walusage.wal_buffers_full = walusage->wal_buffers_full;
 #endif
 	}
 

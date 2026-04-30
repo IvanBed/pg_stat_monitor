@@ -2,9 +2,12 @@
 
 PG_MODULE_MAGIC;
 
-static int find_pos(pgsmPerQuerySharedStorage *shared_storage)
+static int 
+find_pos(pgsmPerQuerySharedStorage *shared_storage)
 {
-    int res_pos = STORAGE_FULL;
+    int res_pos;
+    
+    res_pos = STORAGE_FULL;
     LWLockAcquire(shared_storage->lock, LW_SHARED);
     for (size_t i = 0; i < shared_storage->store_capacity; i++)
     {
@@ -17,7 +20,8 @@ static int find_pos(pgsmPerQuerySharedStorage *shared_storage)
     LWLockRelease(shared_storage->lock);
     return res_pos;
 }
-static void add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+static void 
+add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
 {
     if (!entry)
     {
@@ -50,14 +54,16 @@ static void add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area 
     LWLockRelease(shared_storage->lock);
 }
 
-PGDLLEXPORT bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry)
+PGDLLEXPORT bool 
+pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry)
 {
     if (!entry)
         return false;
 
     //elog(NOTICE, "add_el NEW!");    
+    int pos;
     
-    int pos = find_pos(shared_storage);
+    pos = find_pos(shared_storage);
     //elog(NOTICE, "pos %ld", pos);
     if (pos != STORAGE_FULL)
     {
@@ -70,7 +76,8 @@ PGDLLEXPORT bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_stor
     }
 }
 
-PGDLLEXPORT void cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, int const *ret)
+PGDLLEXPORT void 
+pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, int const *ret)
 {
     dsa_pointer dsa_query_pointer;
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);

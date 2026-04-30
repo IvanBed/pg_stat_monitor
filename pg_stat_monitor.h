@@ -505,6 +505,10 @@ extern bool pgsm_track_application_names;
 extern bool pgsm_enable_pgsm_query_id;
 extern int	pgsm_track;
 
+extern bool pgsm_collect_per_query_statistics;
+extern int  pgsm_log_min_duration;
+extern int  pgsm_log_parameter_max_length;
+
 #define DECLARE_HOOK(hook, ...) \
         static hook(__VA_ARGS__);
 #define HOOK(name) name

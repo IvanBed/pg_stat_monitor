@@ -219,3 +219,69 @@ REVOKE ALL ON FUNCTION pgsm_create_view FROM PUBLIC;
 REVOKE ALL ON FUNCTION pgsm_create_18_view FROM PUBLIC;
 
 GRANT SELECT ON pg_stat_monitor TO PUBLIC;
+
+CREATE TABLE pg_stat_per_query
+(
+    userid              oid,  
+    username            text,
+    dbid                oid,
+    datname             text,
+    client_ip           int8,
+
+    transaction_id      bigint, -- new field
+    queryid             int8, 
+    planid              int8,
+    query               text,
+    query_plan          text,
+    top_queryid         int8,
+    top_query           text,
+    application_name    text,
+
+    relations           text,
+    cmd_type            int,
+    elevel              int,
+    sqlcode             TEXT,
+    message             text,
+
+    calls               int8,
+
+    exec_time           float8,
+
+    rows                int8,
+
+    shared_blks_hit            int8,
+    shared_blks_read           int8,
+    shared_blks_dirtied        int8,
+    shared_blks_written        int8,
+    local_blks_hit             int8,
+    local_blks_read            int8,
+    local_blks_dirtied         int8,
+    local_blks_written         int8,
+    temp_blks_read             int8,
+    temp_blks_written          int8,
+    shared_blk_read_time       float8,
+    shared_blk_write_time      float8,
+    local_blk_read_time        float8,
+    local_blk_write_time       float8,
+
+    temp_blk_read_time         float8,
+    temp_blk_write_time        float8,
+
+    resp_calls          text, 
+    cpu_user_time       float8,
+    cpu_sys_time        float8,
+    wal_records         int8,
+    wal_fpi             int8,
+    wal_bytes           numeric,
+    wal_buffers_full    int8,
+    comments            TEXT,
+
+    plans               int8,
+    total_plan_time     float8,
+
+    per_node_plan_info  TEXT,   --new field, chosen plan and info
+    lock_info           TEXT,   --new field, lock and info
+
+    parallel_workers_to_launch  int, 
+    parallel_workers_launched   int
+);

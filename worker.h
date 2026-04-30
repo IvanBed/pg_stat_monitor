@@ -19,4 +19,6 @@
 #include <utils/snapmgr.h>
 #include "libpq/pqsignal.h"
 
+extern void worker_main(Datum main_arg);
+
 #endif

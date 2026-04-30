@@ -60,8 +60,6 @@ void write_data_to_rel()
     char	     *query_text;
     char	     *plan_info_text;    
     
-    
-    
     storage = pgsm_per_query_local_storage.shared_storage;
     
     MemoryContext oldcontext;

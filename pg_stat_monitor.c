@@ -277,10 +277,9 @@ static void pgsm_lock_release(pgsmSharedState *pgsm);
 
 /*pg_stat_per_query declaration part*/
 
-static pgsmPerQueryEntry *pgsm_crete_per_query_entry(/*statistics vars list*/);
-static pgsmPerQueryEntry *pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
+static void pgsm_create_per_query_entry(/*statistics vars list*/);
+static void pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
 static void init_worker(BackgroundWorker *worker);
-static void pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry)
 static bool check_thresholds();
 
 /* part from has_query.c, shared memory init func and getters */
@@ -851,8 +850,8 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     /*
 	if (collect_per_query && queryId != INT64CONST(0) && pgsm_enabled(nesting_level) && check_thresholds(queryDesc->totaltime, other args, i will add it futher))
 	{
-	    per_query_entry = pgsm_crete_per_query_entry(
-		                                            LONG LIST OF STATS
+	     pgsm_create_per_query_entry(
+		                            LONG LIST OF STATS
 		
 		
 		
@@ -867,7 +866,12 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		
 		
 		
-													);
+									
+									per_query_entry);
+
+        per_query_entry.lock_info.lock_info_pointer = get_lock_info();
+  		per_query_entry.plan_info.plan_pointer      = get_plan_info();
+
 	    res = pgsm_add_per_query_entry(per_query_entry);
 	    if (!res)
 		{
@@ -1454,6 +1458,96 @@ pg_get_client_addr(bool *ok)
 		return ntohl(inet_addr("127.0.0.1"));
 
 	return ntohl(inet_addr(remote_host));
+}
+
+static void
+pgsm_create_per_query_entry(int64_t query_id,
+				  const char *query,
+				  char *comments,
+				  int comments_len,
+				  PlanInfo *plan_info,
+				  SysInfo *sys_info,
+				  ErrorInfo *error_info,
+				  double plan_total_time,
+				  double exec_total_time,
+				  uint64 rows,
+				  BufferUsage *bufusage,
+				  WalUsage *walusage,
+				  const struct JitInstrumentation *jitusage,
+				  int parallel_workers_to_launch,
+				  int parallel_workers_launched,
+				  pgsmPerQueryEntry *per_query_entry)
+{
+	//pgsmPerQueryEntry *per_query_entry = (pgsmPerQueryEntry*) palloc(sizeof(pgsmPerQueryEntry));
+    
+	per_query_entry->queryid                  = query_id;
+    per_query_entry->query_text.query_pointer = query;
+
+	if (sys_info)
+	{
+		entry->counters.sysinfo.utime = sys_info->utime;
+		entry->counters.sysinfo.stime = sys_info->stime;
+	}
+	if (walusage)
+	{
+		entry->counters.walusage.wal_records = walusage->wal_records;
+		entry->counters.walusage.wal_fpi = walusage->wal_fpi;
+		entry->counters.walusage.wal_bytes = walusage->wal_bytes;
+#if PG_VERSION_NUM >= 180000
+		entry->counters.walusage.wal_buffers_full = walusage->wal_buffers_full;
+#endif
+	}
+
+	// buffers_part
+	if (bufusage)
+	{
+		per_query_entry->counters.blocks.shared_blks_hit = bufusage->shared_blks_hit;
+		per_query_entry->counters.blocks.shared_blks_read = bufusage->shared_blks_read;
+		per_query_entry->counters.blocks.shared_blks_dirtied = bufusage->shared_blks_dirtied;
+		per_query_entry->counters.blocks.shared_blks_written = bufusage->shared_blks_written;
+		per_query_entry->counters.blocks.local_blks_hit = bufusage->local_blks_hit;
+		per_query_entry->counters.blocks.local_blks_read = bufusage->local_blks_read;
+		per_query_entry->counters.blocks.local_blks_dirtied = bufusage->local_blks_dirtied;
+		per_query_entry->counters.blocks.local_blks_written = bufusage->local_blks_written;
+		per_query_entry->counters.blocks.temp_blks_read = bufusage->temp_blks_read;
+		per_query_entry->counters.blocks.temp_blks_written = bufusage->temp_blks_written;
+
+#if PG_VERSION_NUM < 170000
+		per_query_entry->counters.blocks.shared_blk_read_time = INSTR_TIME_GET_MILLISEC(bufusage->blk_read_time);
+		per_query_entry->counters.blocks.shared_blk_write_time = INSTR_TIME_GET_MILLISEC(bufusage->blk_write_time);
+#else
+		per_query_entry->counters.blocks.shared_blk_read_time = INSTR_TIME_GET_MILLISEC(bufusage->shared_blk_read_time);
+		per_query_entry->counters.blocks.shared_blk_write_time = INSTR_TIME_GET_MILLISEC(bufusage->shared_blk_write_time);
+		per_query_entry->counters.blocks.local_blk_read_time = INSTR_TIME_GET_MILLISEC(bufusage->local_blk_read_time);
+		per_query_entry->counters.blocks.local_blk_write_time = INSTR_TIME_GET_MILLISEC(bufusage->local_blk_write_time);
+#endif
+
+#if PG_VERSION_NUM >= 150000
+		per_query_entry->counters.blocks.temp_blk_read_time = INSTR_TIME_GET_MILLISEC(bufusage->temp_blk_read_time);
+		per_query_entry->counters.blocks.temp_blk_write_time = INSTR_TIME_GET_MILLISEC(bufusage->temp_blk_write_time);
+#endif
+
+#if PG_VERSION_NUM < 170000
+		memcpy((void *) &per_query_entry->counters.blocks.instr_shared_blk_read_time, &bufusage->blk_read_time, sizeof(instr_time));
+		memcpy((void *) &per_query_entry->counters.blocks.instr_shared_blk_write_time, &bufusage->blk_write_time, sizeof(instr_time));
+#else
+		memcpy((void *) &per_query_entry->counters.blocks.instr_shared_blk_read_time, &bufusage->shared_blk_read_time, sizeof(instr_time));
+		memcpy((void *) &per_query_entry->counters.blocks.instr_shared_blk_write_time, &bufusage->shared_blk_write_time, sizeof(instr_time));
+		memcpy((void *) &per_query_entry->counters.blocks.instr_local_blk_write_time, &bufusage->local_blk_write_time, sizeof(instr_time));
+		memcpy((void *) &per_query_entry->counters.blocks.instr_local_blk_write_time, &bufusage->local_blk_write_time, sizeof(instr_time));
+#endif
+
+
+#if PG_VERSION_NUM >= 150000
+		memcpy((void *) &per_query_entry->counters.blocks.instr_temp_blk_read_time, &bufusage->temp_blk_read_time, sizeof(bufusage->temp_blk_read_time));
+		memcpy((void *) &per_query_entry->counters.blocks.instr_temp_blk_write_time, &bufusage->temp_blk_write_time, sizeof(bufusage->temp_blk_write_time));
+#endif
+	}
+
+	// parrallel_workers
+	per_query_entry->counters.parallel_workers_to_launch = parallel_workers_to_launch;
+	per_query_entry->counters.parallel_workers_launched = parallel_workers_launched;
+
 }
 
 static void

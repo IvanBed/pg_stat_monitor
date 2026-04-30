@@ -200,7 +200,6 @@ typedef struct Counters
 typedef struct pgsmPerQueryEntry
 {
 	int64       queryid;	    /* hash key of entry - MUST BE FIRST */
-	int64		pgsm_query_id;	/* pgsm generate normalized query hash */
 	char		datname[NAMEDATALEN];	/* database name */
 	char		username[NAMEDATALEN];	/* user name */
 	Counters	counters;		/* the statistics for this query */
@@ -213,16 +212,21 @@ typedef struct pgsmPerQueryEntry
 
 	union
 	{
-		dsa_pointer query_pos;	/* query location within dsa buffer */
-		char	   *query_pointer;
-	}  query_text;
+		dsa_pointer lock_info_pos;	/* lock info location within dsa buffer */
+		char	   *lock_info_pointer;
+	}  lock_info;
 
 	union
 	{
 		dsa_pointer plan_pos;	/* plan info text location within dsabuffer */
 		char	   *plan_pointer;
-	}  plan_text;
-
+	}  plan_info;
+	
+	union
+	{
+		dsa_pointer query_pos;	/* query location within query buffer */
+		char	   *query_pointer;
+	}  query_text;
 
 } pgsmPerQueryEntry;
 
@@ -252,8 +256,8 @@ typedef struct pgsmPerQueryLocalStorage
 } pgsmPerQueryLocalStorage;
 
 //args: query info in enrty struct and local storage, that contens shared part and locally initialized dsa
-extern bool pgsm_add_pre_query_entry(pgsmPerQueryEntry *, pgsmPerQueryLocalStorage *);
 
-extern void cleanup_storage(pgsmPerQueryLocalStorage *, int const *);
+extern bool pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry const *entry);
+extern void pgsm_cleanup_storage(pgsmPerQueryLocalStorage *, int const *);
 
 #endif

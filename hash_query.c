@@ -197,9 +197,9 @@ pgsm_attach_shmem_per_query_storage(void)
 	MemoryContextSwitchTo(oldcontext);
 }
 // per query getters
-// rename this function
+// 
 dsa_area *
-get_dsa_area_for_text(void)
+get_per_query_dsa_area(void)
 {
 	pgsm_attach_shmem_per_query_storage();
 	return pgsm_per_query_local_storage.dsa;

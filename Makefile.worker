@@ -1,5 +1,5 @@
-MODULE_big = worker
-OBJS = worker.o
+MODULE_big = pgsm_worker
+OBJS = pgsm_worker.o
 
 SHLIB_LINK = -L.-lpg_stat_per_query_storage
 

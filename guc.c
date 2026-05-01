@@ -42,6 +42,7 @@ static int	pgsm_overflow_target;	/* Not used since 2.0 */
 bool        pgsm_collect_per_query_statistics;
 int         pgsm_log_min_duration;
 int         pgsm_log_parameter_max_length;
+int         pgsm_worker_timeout;
 
 /* Check hooks to ensure histogram_min < histogram_max */
 static bool check_histogram_min(double *newval, void **extra, GucSource source);
@@ -299,7 +300,7 @@ init_guc(void)
 							 NULL,	/* long_desc */
 							 &pgsm_collect_per_query_statistics,	/* value address */
 							 false, /* boot value */
-							 PGC_USERSET,	/* context */
+							 PGC_POSTMASTER,	/* context */
 							 0, /* flags */
 							 NULL,	/* check_hook */
 							 NULL,	/* assign_hook */
@@ -331,6 +332,23 @@ init_guc(void)
                              NULL,
                              NULL
 		);
+	
+
+	DefineCustomIntVariable("pg_stat_monitor.pgsm_worker_timeout", /* name */
+							"Sets the work timeout og the async background worket that write the statistics in thr realtion",	/* short_desc */
+							NULL,	/* long_desc */
+							&pgsm_worker_timeout,	/* value address */
+							100000, /* boot value */
+							10000,	/* min value */
+							10000000,	/* max value */
+							PGC_SUSET, /* context */
+							GUC_UNIT_MB,	/* flags */
+							NULL,	/* check_hook */
+							NULL,	/* assign_hook */
+							NULL	/* show_hook */
+		);
+
+
 
 // add some constants
 // db name, default postgres

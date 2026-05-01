@@ -1,4 +1,4 @@
-#include "worker.h"
+#include "pgsm_worker.h"
 
 PG_MODULE_MAGIC;
 
@@ -116,7 +116,7 @@ write_data_to_rel()
             
             query_text = dsa_get_address(dsa, shared_storage->store[i].query_text.query_pos);
             // make a query to db
-            //appendStringInfo(&buf, "INSERT INTO %s (id, name) VALUES (%d, '%s')", TABLE_NAME, shared_storage->store[i].id, query_text);
+            //appendStringInfo(&buf, "INSERT INTO %s (id, name) VALUES (%d, '%s')", REL_NAME, shared_storage->store[i].id, query_text);
             
             ret[i] = SPI_execute(buf.data, false, 0);
             pfree(buf.data);
@@ -141,23 +141,32 @@ PGDLLEXPORT void
 worker_main(Datum main_arg)
 {
     // using args i can pass a db name
-    
+    char *db_name;
+    char *rel_name;
+    long  timeout;
+
+    // temp init for test
+    db_name  = "postgres";
+    timeout  = 10000;
+
+    /*add error handling*/
+    if (!get_shmem_latch())
+    {
+        //elog(FATAL, "Please use shared_preload_libraries");
+        return;
+    }
+
+    if (!get_shmem_storage())
+    {
+        //elog(FATAL, "Please use shared_preload_libraries");
+        return;
+    }
+
     pqsignal(SIGHUP, SignalHandlerForConfigReload);
     pqsignal(SIGTERM, die);
     BackgroundWorkerUnblockSignals();
 
-    /*add error handling*/
-    if (get_shmem_latch())
-    {
-        //elog(FATAL, "Please use shared_preload_libraries");
-    }
-
-    if (get_shmem_storage())
-    {
-        //elog(FATAL, "Please use shared_preload_libraries");
-    }
-
-    BackgroundWorkerInitializeConnection("postgres", NULL, 0);
+    BackgroundWorkerInitializeConnection(db_name, NULL, 0);
 
     // It gives ownership of a shared memory latch to the worker
     OwnLatch(latch);
@@ -165,7 +174,7 @@ worker_main(Datum main_arg)
     for (;;)
     {
         // wait the signal or timeout
-        (void) WaitLatch(latch, WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH, 10000, PG_WAIT_EXTENSION);
+        (void) WaitLatch(latch, WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH, timeout, PG_WAIT_EXTENSION);
         ResetLatch(latch);
 
         CHECK_FOR_INTERRUPTS();
@@ -176,7 +185,6 @@ worker_main(Datum main_arg)
             ProcessConfigFile(PGC_SIGHUP);
         }
         //write_data_to_rel();
-
     }
 }
 

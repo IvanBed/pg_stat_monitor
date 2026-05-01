@@ -1,5 +1,5 @@
-#ifndef __WORKER_H__
-#define __WORKER_H__
+#ifndef __PGSM_WORKER_H__
+#define __PGSM_WORKER_H__
 
 #include "pg_stat_per_query_storage.h"
 

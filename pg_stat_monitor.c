@@ -89,6 +89,9 @@ volatile bool __pgsm_do_not_capture_error = false;
 static int	plan_nested_level = 0;
 #endif
 
+/*TEMP PART*/
+static bool pgsm_collect_per_query_statistics_temp = true;
+
 /* Histogram bucket variables */
 static double hist_bucket_min;
 static double hist_bucket_max;
@@ -285,7 +288,7 @@ static bool check_thresholds();
 /* part from has_query.c, shared memory init func and getters */
 
 // i should rename this func, i guess there will be some mistakes with that due to no information which the dsa it is
-dsa_area * get_dsa_area_for_text(void);
+dsa_area * get_per_query_dsa_area(void);
 pgsmPerQuerySharedStorage *get_per_query_shared_storage(void);
 MemoryContext get_per_query_local_mem_context(void);
 
@@ -370,11 +373,15 @@ _PG_init(void)
 	system_init = true;
 
 
-    /* Init worker part*/
-    BackgroundWorker worker;
-    init_worker(&worker);
-
-    RegisterBackgroundWorker(&worker); 
+    /* Init worker if we want to collect per query statistics*/
+    if (pgsm_collect_per_query_statistics)
+	{
+    	BackgroundWorker worker;
+        init_worker(&worker, pgsm_worker_timeout);
+    
+        RegisterBackgroundWorker(&worker);
+	}
+ 
 
 }
 
@@ -4259,7 +4266,7 @@ pgsm_lock_release(pgsmSharedState *pgsm)
 
 /*Per query funcs definition part*/
 
-void init_worker(BackgroundWorker *worker)
+void init_worker(BackgroundWorker *worker, long timeout)
 {
     memset(worker, 0, sizeof(*worker));
     
@@ -4272,4 +4279,6 @@ void init_worker(BackgroundWorker *worker)
     (*worker).bgw_notify_pid = 0;
     snprintf((*worker).bgw_name, BGW_MAXLEN, "pgsm_worker pgsm_worker %d", 1);
     snprintf((*worker).bgw_type, BGW_MAXLEN, "pgsm_worker");
+
+	worker.bgw_main_arg = Int64GetDatum(timeout);
 }

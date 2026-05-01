@@ -22,9 +22,7 @@ static pgsmLocalState           pgsmStateLocal;
 
 static pgsmPerQueryLocalStorage pgsm_per_query_local_storage;
 
-static Latch                    *latch         = NULL;
-
-/*I guess it is a part where i can place my storage structs var*/
+static Latch                   *latch;
 
 static PGSM_HASH_TABLE_HANDLE pgsm_create_bucket_hash(pgsmSharedState *pgsm, dsa_area *dsa);
 static Size pgsm_get_shared_area_size(void);
@@ -161,13 +159,13 @@ init_storage_shmem_if_needed(void)
         p += MAXALIGN(sizeof(pgsmPerQuerySharedStorage));
 		shared_storage->raw_dsa_area = p;
 		
-        dsa = dsa_create_in_place(shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
+        /*dsa = dsa_create_in_place(shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
 		
         dsa_pin(dsa);
 		dsa_set_size_limit(dsa, DSA_STORE_MAX_SIZE);
          
         dsa_detach(dsa);
-
+*/
         memset(shared_storage->store, 0, sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         memset(shared_storage->free_space_bitmap, 0, sizeof(uint8_t) * STORE_CAPACITY);
 		
@@ -188,10 +186,14 @@ pgsm_attach_shmem_per_query_storage(void)
 
 	if (pgsm_per_query_local_storage.dsa)
 		return;
-    
+    elog(NOTICE, "attach_shmem 1");  
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
-	pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
+    pgsm_per_query_local_storage.dsa  = dsa_create_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
+	//pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
+	dsa_set_size_limit(pgsm_per_query_local_storage.dsa, DSA_STORE_MAX_SIZE);
+
+	elog(NOTICE, "attach_shmem 2"); 
 	dsa_pin_mapping(pgsm_per_query_local_storage.dsa);
 
 	MemoryContextSwitchTo(oldcontext);

@@ -282,7 +282,7 @@ static void pgsm_lock_release(pgsmSharedState *pgsm);
 
 static void pgsm_create_per_query_entry(/*statistics vars list*/);
 static void pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
-static void init_worker(BackgroundWorker *worker);
+static void init_worker(BackgroundWorker *worker, long);
 static bool check_thresholds();
 
 /* part from has_query.c, shared memory init func and getters */
@@ -759,9 +759,11 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	PlanInfo   *plan_ptr = NULL;
 	pgsmEntry  *entry = NULL;
 
-    // per query part
-    pgsmPerQueryEntry *per_query_entry = NULL;
-    bool               res;
+    // per query part declaration part
+	pgsmPerQuerySharedStorage  *shared_storage;
+	dsa_area                   *dsa;	
+    pgsmPerQueryEntry           per_query_entry;
+    bool                        res;
 
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
@@ -855,9 +857,10 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 
 	//Per query part here
     /*
-	if (collect_per_query && queryId != INT64CONST(0) && pgsm_enabled(nesting_level) && check_thresholds(queryDesc->totaltime, other args, i will add it futher))
+	if (pgsm_collect_per_query_statistics && queryId != INT64CONST(0) && pgsm_enabled(nesting_level) && check_thresholds(queryDesc->totaltime, other args, i will add it futher))
 	{
-	     pgsm_create_per_query_entry(
+	    
+		pgsm_create_per_query_entry(
 		                            LONG LIST OF STATS
 		
 		
@@ -893,6 +896,43 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	}
 	
 	*/
+
+    /*test part*/
+	elog(NOTICE, "get_per_query_dsa_area()");
+    shared_storage = get_per_query_shared_storage();	
+	elog(NOTICE, "get_per_query_shared_storage()");
+	dsa            = get_per_query_dsa_area();
+     
+    elog(NOTICE, "text %s", queryDesc->sourceText);
+
+	pgsm_create_per_query_entry(queryId,	/* entry */
+        						queryDesc->sourceText, /* query */
+        						NULL, /* comments */
+        						0,	/* comments length */
+        						NULL, /* PlanInfo */
+        						NULL,	/* SysInfo */
+        						NULL, /* ErrorInfo */
+        						0,	/* plan_total_time */
+        						queryDesc->totaltime->total * 1000.0, /* exec_total_time */
+        						queryDesc->estate->es_processed,	/* rows */
+        						&queryDesc->totaltime->bufusage,	/* bufusage */
+        						&queryDesc->totaltime->walusage,	/* walusage */
+#if PG_VERSION_NUM >= 150000
+        						queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL, /* jitusage */
+#else
+        						NULL,
+#endif
+#if PG_VERSION_NUM >= 180000
+        						queryDesc->estate->es_parallel_workers_to_launch, /* parallel_workers_to_launch */
+        						queryDesc->estate->es_parallel_workers_launched,	/* parallel_workers_launched */
+#else
+        						0,	/* parallel_workers_to_launch */
+        						0,	/* parallel_workers_launched */
+#endif
+        						&per_query_entry);	/* kind */
+
+    pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry);
+
 
 	if (prev_ExecutorEnd)
 		prev_ExecutorEnd(queryDesc);
@@ -4270,15 +4310,15 @@ void init_worker(BackgroundWorker *worker, long timeout)
 {
     memset(worker, 0, sizeof(*worker));
     
-    (*worker).bgw_flags = BGWORKER_SHMEM_ACCESS | BGWORKER_BACKEND_DATABASE_CONNECTION;
-    (*worker).bgw_start_time = BgWorkerStart_RecoveryFinished;
-    (*worker).bgw_restart_time = BGW_NEVER_RESTART;
+    worker->bgw_flags = BGWORKER_SHMEM_ACCESS | BGWORKER_BACKEND_DATABASE_CONNECTION;
+    worker->bgw_start_time = BgWorkerStart_RecoveryFinished;
+    worker->bgw_restart_time = BGW_NEVER_RESTART;
     
-    sprintf((*worker).bgw_library_name, "pgsm_worker");
-    sprintf((*worker).bgw_function_name, "worker_main");
-    (*worker).bgw_notify_pid = 0;
-    snprintf((*worker).bgw_name, BGW_MAXLEN, "pgsm_worker pgsm_worker %d", 1);
-    snprintf((*worker).bgw_type, BGW_MAXLEN, "pgsm_worker");
+    sprintf(worker->bgw_library_name, "pgsm_worker");
+    sprintf(worker->bgw_function_name, "worker_main");
+    worker->bgw_notify_pid = 0;
+    snprintf(worker->bgw_name, BGW_MAXLEN, "pgsm_worker pgsm_worker %d", 1);
+    snprintf(worker->bgw_type, BGW_MAXLEN, "pgsm_worker");
 
-	worker.bgw_main_arg = Int64GetDatum(timeout);
+	worker->bgw_main_arg = Int64GetDatum(timeout);
 }

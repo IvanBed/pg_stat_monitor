@@ -27,7 +27,7 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     {
         return;
     }
-
+    elog(NOTICE, "add_el_internal!");   
     char	   *query_buff;
     dsa_pointer dsa_query_pointer;
     
@@ -36,15 +36,18 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     
     query_text = entry->query_text.query_pointer;
     query_len  = strlen(query_text); 
-
+    elog(NOTICE, "query_text: %s", query_text);   
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
 
     dsa_query_pointer = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
+    elog(NOTICE, "dsa_allocate_extended");   
     if (DsaPointerIsValid(dsa_query_pointer))
     {
+        elog(NOTICE, "DsaPointerIsValid");  
         query_buff = dsa_get_address(dsa, dsa_query_pointer);
         memcpy(query_buff, query_text, query_len);
         query_buff[query_len] = 0;
+        // i guess i can avoid this statement and add const correctness to entry
         entry->query_text.query_pos = dsa_query_pointer;
     } 
 
@@ -60,11 +63,11 @@ pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *ds
     if (!entry)
         return false;
 
-    //elog(NOTICE, "add_el NEW!");    
+    elog(NOTICE, "add_el NEW!");    
     int pos;
     
     pos = find_pos(shared_storage);
-    //elog(NOTICE, "pos %ld", pos);
+    elog(NOTICE, "pos %ld", pos);
     if (pos != STORAGE_FULL)
     {
         add_el_internal(shared_storage, dsa, entry, pos);

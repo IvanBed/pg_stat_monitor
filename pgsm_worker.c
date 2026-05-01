@@ -143,7 +143,7 @@ worker_main(Datum main_arg)
     // using args i can pass a db name
     char *db_name;
     char *rel_name;
-    long  timeout;
+    long  timeout;
 
     // temp init for test
     db_name  = "postgres";

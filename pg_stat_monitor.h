@@ -64,6 +64,10 @@
 #include "pg_stat_per_query_storage.h"
 #include "postmaster/interrupt.h"
 #include "storage/latch.h"  
+#include "utils/rel.h"
+
+#include "catalog/namespace.h"
+
 // check whether it is necessary or nor
 #include "storage/proc.h"
 

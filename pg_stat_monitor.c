@@ -89,9 +89,6 @@ volatile bool __pgsm_do_not_capture_error = false;
 static int	plan_nested_level = 0;
 #endif
 
-/*TEMP PART*/
-static bool pgsm_collect_per_query_statistics_temp = true;
-
 /* Histogram bucket variables */
 static double hist_bucket_min;
 static double hist_bucket_max;
@@ -100,6 +97,12 @@ static int	hist_bucket_count_user;
 static int	hist_bucket_count_total;
 
 static uint32 pgsm_client_ip = PGSM_INVALID_IP_MASK;
+
+/* Per query vars part*/
+static pg_atomic_uint64 seq = {0};
+
+static Oid storage_rel_oid;
+
 
 /* The array to store outer layer query id*/
 int64	   *nested_queryids;
@@ -116,7 +119,6 @@ static struct rusage rusage_end;
 /* Application name and length; set each time when an entry is created locally */
 static char app_name[APPLICATIONNAME_LEN];
 static int	app_name_len;
-
 
 /* Query buffer, store queries' text. */
 static char *pgsm_explain(QueryDesc *queryDesc);
@@ -280,10 +282,32 @@ static void pgsm_lock_release(pgsmSharedState *pgsm);
 
 /*pg_stat_per_query declaration part*/
 
-static void pgsm_create_per_query_entry(/*statistics vars list*/);
+static void
+pgsm_create_per_query_entry(uint64_t execution_id,
+				  const char *query,
+				  char *comments,
+				  int comments_len,
+				  PlanInfo *plan_info,
+				  SysInfo *sys_info,
+				  ErrorInfo *error_info,
+				  double plan_total_time,
+				  double exec_total_time,
+				  uint64 rows,
+				  BufferUsage *bufusage,
+				  WalUsage *walusage,
+				  const struct JitInstrumentation *jitusage,
+				  int parallel_workers_to_launch,
+				  int parallel_workers_launched,
+				  pgsmPerQueryEntry *per_query_entry);
+
+
 static void pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
 static void init_worker(BackgroundWorker *worker, long);
 static bool check_thresholds();
+static uint64_t generate_unique_execution_id(void);
+static bool check_storage_rel(QueryDesc *queryDesc);
+
+static Oid get_rel_oid(const char *schema, const char *table);
 
 /* part from has_query.c, shared memory init func and getters */
 
@@ -344,7 +368,6 @@ _PG_init(void)
 	{
         pgsm_per_query_request_shmem();
 	}	
-
 #endif
 	prev_shmem_startup_hook = shmem_startup_hook;
 	shmem_startup_hook = pgsm_shmem_startup;
@@ -378,10 +401,10 @@ _PG_init(void)
 	{
     	BackgroundWorker worker;
         init_worker(&worker, pgsm_worker_timeout);
-    
         RegisterBackgroundWorker(&worker);
+		
+		//storage_rel_oid = get_rel_oid("public", "pg_stat_per_query");
 	}
- 
 
 }
 
@@ -397,10 +420,10 @@ pgsm_shmem_startup(void)
 	if (prev_shmem_startup_hook)
 		prev_shmem_startup_hook();
 
-	pgsm_startup();
-
 	if (pgsm_collect_per_query_statistics)
         pgsm_per_query_startup();
+
+	pgsm_startup();
 
 }
 
@@ -896,43 +919,50 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	}
 	
 	*/
+    //check_storage_rel(queryDesc)
+	elog(NOTICE, "storage_rel_oid %ld", storage_rel_oid);
 
-    /*test part*/
-	elog(NOTICE, "get_per_query_dsa_area()");
-    shared_storage = get_per_query_shared_storage();	
-	elog(NOTICE, "get_per_query_shared_storage()");
-	dsa            = get_per_query_dsa_area();
-     
-    elog(NOTICE, "text %s", queryDesc->sourceText);
-
-	pgsm_create_per_query_entry(queryId,	/* entry */
-        						queryDesc->sourceText, /* query */
-        						NULL, /* comments */
-        						0,	/* comments length */
-        						NULL, /* PlanInfo */
-        						NULL,	/* SysInfo */
-        						NULL, /* ErrorInfo */
-        						0,	/* plan_total_time */
-        						queryDesc->totaltime->total * 1000.0, /* exec_total_time */
-        						queryDesc->estate->es_processed,	/* rows */
-        						&queryDesc->totaltime->bufusage,	/* bufusage */
-        						&queryDesc->totaltime->walusage,	/* walusage */
-#if PG_VERSION_NUM >= 150000
-        						queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL, /* jitusage */
-#else
-        						NULL,
-#endif
-#if PG_VERSION_NUM >= 180000
-        						queryDesc->estate->es_parallel_workers_to_launch, /* parallel_workers_to_launch */
-        						queryDesc->estate->es_parallel_workers_launched,	/* parallel_workers_launched */
-#else
-        						0,	/* parallel_workers_to_launch */
-        						0,	/* parallel_workers_launched */
-#endif
-        						&per_query_entry);	/* kind */
-
-    pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry);
-
+    if (queryDesc->operation == CMD_SELECT)
+    {
+		/*test part*/
+    	elog(NOTICE, "get_per_query_dsa_area()");
+        shared_storage = get_per_query_shared_storage();	
+    	elog(NOTICE, "get_per_query_shared_storage()");
+    	dsa            = get_per_query_dsa_area();
+    
+    
+    	uint64_t id = generate_unique_execution_id();
+    
+        elog(NOTICE, "text %s", queryDesc->sourceText);
+        elog(NOTICE, "id %ld", id);
+    	pgsm_create_per_query_entry(id,	/* entry */
+            						queryDesc->sourceText, /* query */
+            						NULL, /* comments */
+            						0,	/* comments length */
+            						NULL, /* PlanInfo */
+            						NULL,	/* SysInfo */
+            						NULL, /* ErrorInfo */
+            						0,	/* plan_total_time */
+            						queryDesc->totaltime->total * 1000.0, /* exec_total_time */
+            						queryDesc->estate->es_processed,	/* rows */
+            						&queryDesc->totaltime->bufusage,	/* bufusage */
+            						&queryDesc->totaltime->walusage,	/* walusage */
+    #if PG_VERSION_NUM >= 150000
+            						queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL, /* jitusage */
+    #else
+            						NULL,
+    #endif
+    #if PG_VERSION_NUM >= 180000
+            						queryDesc->estate->es_parallel_workers_to_launch, /* parallel_workers_to_launch */
+            						queryDesc->estate->es_parallel_workers_launched,	/* parallel_workers_launched */
+    #else
+            						0,	/* parallel_workers_to_launch */
+            						0,	/* parallel_workers_launched */
+    #endif
+            						&per_query_entry);	/* kind */
+    
+        pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry);
+	}
 
 	if (prev_ExecutorEnd)
 		prev_ExecutorEnd(queryDesc);
@@ -1508,7 +1538,7 @@ pg_get_client_addr(bool *ok)
 }
 
 static void
-pgsm_create_per_query_entry(int64_t query_id,
+pgsm_create_per_query_entry(uint64_t execution_id,
 				  const char *query,
 				  char *comments,
 				  int comments_len,
@@ -1527,8 +1557,12 @@ pgsm_create_per_query_entry(int64_t query_id,
 {
 	//pgsmPerQueryEntry *per_query_entry = (pgsmPerQueryEntry*) palloc(sizeof(pgsmPerQueryEntry));
     
-	per_query_entry->queryid                  = query_id;
+	per_query_entry->execution_id             = execution_id;
     per_query_entry->query_text.query_pointer = query;
+
+	per_query_entry->plan_info_text.plan_info_pointer   = "TEST STRING FOR PLAN";
+
+	per_query_entry->locks_info_text.locks_info_pointer   = "TEST STRING FOR LOCKS";
 
 	if (sys_info)
 	{
@@ -4306,7 +4340,8 @@ pgsm_lock_release(pgsmSharedState *pgsm)
 
 /*Per query funcs definition part*/
 
-void init_worker(BackgroundWorker *worker, long timeout)
+static void 
+init_worker(BackgroundWorker *worker, long timeout)
 {
     memset(worker, 0, sizeof(*worker));
     
@@ -4321,4 +4356,69 @@ void init_worker(BackgroundWorker *worker, long timeout)
     snprintf(worker->bgw_type, BGW_MAXLEN, "pgsm_worker");
 
 	worker->bgw_main_arg = Int64GetDatum(timeout);
+}
+
+static bool 
+check_storage_rel(QueryDesc *queryDesc)
+{
+    EState     *query_state    = queryDesc->estate;
+    Relation   *rels_arr       = query_state->es_relations;
+	
+	for (size_t rel_idx = 0; rel_idx < query_state->es_range_table_size; rel_idx++)
+    {
+        if (rels_arr[rel_idx]->rd_id == storage_rel_oid)
+		    return false;          
+    }	
+	return true;
+}
+
+static Oid 
+get_rel_oid(char const *schema, char const *rel_name)
+{	    
+	Oid schema_oid;
+	Oid rel_oid;
+	schema_oid = get_namespace_oid(schema, false);
+	rel_oid    = get_relname_relid(rel_name, schema_oid);
+	return rel_oid;
+}
+
+static uint64_t 
+generate_unique_execution_id(void)
+{
+    
+    uint64_t now_us  = (uint64_t) GetCurrentTimestamp();  
+    uint64_t seq_val = pg_atomic_fetch_add_u64(&seq, 1);
+    /*elog(NOTICE, "generate_unique_execution_id func");
+
+	elog(NOTICE, "test1 %ld", (now_us << 10) | (seq_val & 0xFFFFF));
+    elog(NOTICE, "test2 %ld", (now_us << 32) | (seq_val & 0xFFFFF));
+   */
+    return (now_us << 20) | (seq_val & 0xFFFFF);
+}
+
+/* test funcs*/
+PG_FUNCTION_INFO_V1(pgsm_log_print);
+
+Datum pgsm_log_print(PG_FUNCTION_ARGS)
+{
+	char *text;
+	dsa_area *dsa                      = get_per_query_dsa_area();
+	pgsmPerQuerySharedStorage *storage = get_per_query_shared_storage();
+    LWLockAcquire(storage->lock, LW_SHARED);
+	if (storage)
+    {
+        elog(NOTICE, "STORAGE CONTENT");  
+        elog(NOTICE, "--------------------------------------------------");
+        elog(NOTICE, "capacity %ld", storage->store_capacity);
+        
+        for (size_t i = 0; i < storage->store_capacity; i++)
+        {
+            text = dsa_get_address(dsa, storage->store[i].query_text.query_pos);
+            if (storage->free_space_bitmap[i] == ALLOCATED)
+                elog(NOTICE, "id: %ld %s", (storage->store + i)->execution_id, text); 
+        } 
+        elog(NOTICE, "--------------------------------------------------");       
+    } 
+LWLockRelease(storage->lock);
+    PG_RETURN_VOID();
 }

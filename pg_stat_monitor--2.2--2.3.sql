@@ -228,6 +228,7 @@ CREATE TABLE pg_stat_per_query
     datname             text,
     client_ip           int8,
 
+    execution_id        int64,
     transaction_id      bigint, -- new field
     queryid             int8, 
     planid              int8,
@@ -285,3 +286,7 @@ CREATE TABLE pg_stat_per_query
     parallel_workers_to_launch  int, 
     parallel_workers_launched   int
 );
+
+CREATE FUNCTION pgsm_log_print() RETURNS void
+     AS '/usr/lib/postgresql/16/lib/pg_stat_monitor', 'pgsm_log_print'
+     LANGUAGE C STRICT;

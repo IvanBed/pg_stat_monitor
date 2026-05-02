@@ -204,7 +204,7 @@ typedef struct Counters
 // to think about whether i can use a common pgsmEntry from pg_stat_monitor header
 typedef struct pgsmPerQueryEntry
 {
-	int64       queryid;	    /* hash key of entry - MUST BE FIRST */
+	uint64_t    execution_id;	   
 	char		datname[NAMEDATALEN];	/* database name */
 	char		username[NAMEDATALEN];	/* user name */
 	Counters	counters;		/* the statistics for this query */
@@ -217,15 +217,15 @@ typedef struct pgsmPerQueryEntry
 
 	union
 	{
-		dsa_pointer lock_info_pos;	/* lock info location within dsa buffer */
-		char	   *lock_info_pointer;
-	}  lock_info;
+		dsa_pointer locks_info_pos;	/* lock info location within dsa buffer */
+		char	   *locks_info_pointer;
+	}  locks_info_text;
 
 	union
 	{
-		dsa_pointer plan_pos;	/* plan info text location within dsabuffer */
-		char	   *plan_pointer;
-	}  plan_info;
+		dsa_pointer plan_info_pos;	/* plan info text location within dsabuffer */
+		char	   *plan_info_pointer;
+	}  plan_info_text;
 	
 	union
 	{

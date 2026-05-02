@@ -10,10 +10,26 @@ static bool get_shmem_storage(void);
 static void attach_shmem(void);
 static dsa_area *get_dsa_area(void);
 static pgsmPerQuerySharedStorage * get_per_query_shared_storage(void);
+static Size pgsm_per_query_area_size(void);
+static Size pgsm_get_per_query_shared_size(void);
 
+static Size
+pgsm_per_query_area_size(void)
+{
+	Size sz = DSA_STORE_MAX_SIZE;
+	return MAXALIGN(sz);
+}
+
+static Size
+pgsm_get_per_query_shared_size(void)
+{
+    Size sz = sizeof(pgsmPerQuerySharedStorage);
+    sz += pgsm_per_query_area_size();  
+    return sz;
+}
 
 static bool 
-get_shmem_latch()
+get_shmem_latch(void)
 {
     bool found;
 
@@ -26,12 +42,12 @@ get_shmem_latch()
 }
 
 static bool 
-get_shmem_storage()
+get_shmem_storage(void)
 {
     bool found;
     LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
-    pgsm_per_query_local_storage.shared_storage = ShmemInitStruct("PerQuerySharedStorage", sizeof(pgsmPerQuerySharedStorage), &found);
+    pgsm_per_query_local_storage.shared_storage = ShmemInitStruct("PerQuerySharedStorage", pgsm_get_per_query_shared_size(), &found);
 
     LWLockRelease(AddinShmemInitLock);
     return found;
@@ -67,7 +83,7 @@ get_per_query_shared_storage(void)
 }
 
 static void 
-write_data_to_rel()
+write_data_to_rel(void)
 {
     pgsmPerQuerySharedStorage *shared_storage;
     size_t ret_arr_size;
@@ -76,7 +92,7 @@ write_data_to_rel()
 
     //Statistics vars declaration
     dsa_area    *dsa;
-    dsa_pointer  dsa_text_pointer;
+    //dsa_pointer  dsa_text_pointer;
 	
     char	     *query_text;
     char	     *plan_info_text;    
@@ -87,13 +103,10 @@ write_data_to_rel()
     // Use TopMemoryContext to avoid mem leaks
     oldcontext = MemoryContextSwitchTo(TopMemoryContext);
     
+    LWLockAcquire(shared_storage->lock, LW_SHARED);
+
     ret_arr_size   = sizeof(int) * shared_storage->store_capacity;
     ret            = (int*) palloc(ret_arr_size);
-
-    if (!ret)
-    {
-        elog(WARNING, "Could not allocate memort for return codes array"); 
-    }
 
     memset(ret, 0, ret_arr_size);
     
@@ -102,8 +115,6 @@ write_data_to_rel()
     SPI_connect();
     PushActiveSnapshot(GetTransactionSnapshot());
 
-    LWLockAcquire(shared_storage->lock, LW_SHARED);
-	
     query_text    = NULL;
     plan_info_text = NULL;
 
@@ -116,7 +127,7 @@ write_data_to_rel()
             
             query_text = dsa_get_address(dsa, shared_storage->store[i].query_text.query_pos);
             // make a query to db
-            //appendStringInfo(&buf, "INSERT INTO %s (id, name) VALUES (%d, '%s')", REL_NAME, shared_storage->store[i].id, query_text);
+            appendStringInfo(&buf, "INSERT INTO %s (execution_id, query) VALUES (%ld, '%s')", REL_NAME, shared_storage->store[i].execution_id, query_text);
             
             ret[i] = SPI_execute(buf.data, false, 0);
             pfree(buf.data);
@@ -142,7 +153,6 @@ worker_main(Datum main_arg)
 {
     // using args i can pass a db name
     char *db_name;
-    char *rel_name;
     long  timeout;
 
     // temp init for test
@@ -184,7 +194,7 @@ worker_main(Datum main_arg)
             ConfigReloadPending = false;
             ProcessConfigFile(PGC_SIGHUP);
         }
-        //write_data_to_rel();
+        write_data_to_rel();
     }
 }
 

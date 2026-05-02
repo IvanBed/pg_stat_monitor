@@ -20,36 +20,144 @@ find_pos(pgsmPerQuerySharedStorage *shared_storage)
     LWLockRelease(shared_storage->lock);
     return res_pos;
 }
-static void 
-add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+
+static bool 
+dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
 {
+    char  *buf;
+    dsa_pointer dsa_pointer_handle; 
+    
+    dsa_pointer_handle = dsa_allocate_extended(dsa, text_len + 1,  DSA_ALLOC_ZERO);
+
+    if (DsaPointerIsValid(dsa_pointer_handle))
+    {
+        buf = dsa_get_address(dsa, dsa_pointer_handle);
+        memcpy(buf, text, text_len);
+        buf[text_len] = 0;
+        *pos = dsa_pointer_handle;
+        return true;
+    } 
+    else 
+    {
+        return false;
+    }
+}
+
+static void 
+add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+{
+    elog(NOTICE, "add_el_internal!");
     if (!entry)
     {
         return;
     }
-    elog(NOTICE, "add_el_internal!");   
+    dsa_pointer dsa_pointer_handle;
+
+    /*query vars*/   
+    size_t      query_len;
+    char       *query_text;
+    /*plan info vars*/
+    size_t      plan_len;
+    char       *plan_text;      
+    /*locks info vars*/
+    size_t      locks_len;
+    char       *locks_text;     
+
+    query_text = entry->query_text.query_pointer;
+    query_len  = strlen(query_text); 
+
+    plan_text  = entry->plan_info_text.plan_info_pointer;
+    plan_len   = strlen(plan_text); 
+
+    locks_text = entry->locks_info_text.locks_info_pointer;
+    locks_len  = strlen(locks_text); 
+
+ 
+    LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
+    
+    if (!dsa_store(dsa, query_text, query_len, &(entry->query_text.query_pos)))
+        elog(NOTICE, "Could not add query text into the DSA");
+
+    if (!dsa_store(dsa, plan_text, plan_len, &(entry->plan_info_text.plan_info_pos)))
+        elog(NOTICE, "Could not add plan text into the DSA");
+    
+    if (!dsa_store(dsa, query_text, query_len, &(entry->locks_info_text.locks_info_pos)))
+        elog(NOTICE, "Could not add locks info text into the DSA");
+
+    memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
+    shared_storage->free_space_bitmap[pos] = ALLOCATED;
+
+    LWLockRelease(shared_storage->lock);
+}
+
+static void 
+add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+{
+    elog(NOTICE, "add_el_internal!");
+    if (!entry)
+    {
+        return;
+    }
+    dsa_pointer dsa_pointer_handle;
+
+    /*query vars*/   
     char	   *query_buff;
-    dsa_pointer dsa_query_pointer;
     
     size_t      query_len;
     char       *query_text;
-    
+    /*plan info vars*/
+    char	   *plan_buff;
+    //dsa_pointer dsa_plan_pointer;
+    size_t      plan_len;
+    char       *plan_text;      
+    /*locks info vars*/
+    char	   *locks_buff;
+    //dsa_pointer dsa_locks_pointer;
+    size_t      locks_len;
+    char       *locks_text;     
+
     query_text = entry->query_text.query_pointer;
     query_len  = strlen(query_text); 
-    elog(NOTICE, "query_text: %s", query_text);   
+
+    plan_text  = entry->plan_info_text.plan_info_pointer;
+    plan_len   = strlen(plan_text); 
+
+    locks_text = entry->locks_info_text.locks_info_pointer;
+    locks_len  = strlen(locks_text); 
+
+ 
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
 
-    dsa_query_pointer = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
-    elog(NOTICE, "dsa_allocate_extended");   
-    if (DsaPointerIsValid(dsa_query_pointer))
+    dsa_pointer_handle = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
+    elog(NOTICE, "dsa_allocate_extended for query");   
+    if (DsaPointerIsValid(dsa_pointer_handle))
     {
         elog(NOTICE, "DsaPointerIsValid");  
-        query_buff = dsa_get_address(dsa, dsa_query_pointer);
+        query_buff = dsa_get_address(dsa, dsa_pointer_handle);
         memcpy(query_buff, query_text, query_len);
         query_buff[query_len] = 0;
-        // i guess i can avoid this statement and add const correctness to entry
-        entry->query_text.query_pos = dsa_query_pointer;
+        entry->query_text.query_pos = dsa_pointer_handle;
     } 
+
+    /*dsa_pointer_handle = dsa_allocate_extended(dsa, plan_len + 1,  DSA_ALLOC_ZERO);
+    elog(NOTICE, "dsa_allocate_extended for plan info");   
+    if (DsaPointerIsValid(dsa_pointer_handle))
+    {
+        elog(NOTICE, "DsaPointerIsValid");  
+        plan_buff = dsa_get_address(dsa, dsa_pointer_handle);
+        memcpy(query_buff, query_text, query_len);
+        query_buff[query_len] = 0;
+    } 
+
+    dsa_pointer_handle = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
+    elog(NOTICE, "dsa_allocate_extended for дщслы info");   
+    if (DsaPointerIsValid(dsa_pointer_handle))
+    {
+        elog(NOTICE, "DsaPointerIsValid");  
+        query_buff = dsa_get_address(dsa, dsa_pointer_handle);
+        memcpy(query_buff, query_text, query_len);
+        query_buff[query_len] = 0;
+    } */
 
     memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
     shared_storage->free_space_bitmap[pos] = ALLOCATED;
@@ -87,7 +195,7 @@ pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, i
     
     for (size_t i = 0; i < shared_storage->store_capacity; i++)
     {
-        // Удаляем строку из динамической разделяемой памяти и помечаем позиции в store как свободную.
+        // Delete a tuple in the store and mark this position as FREE.
         if (ret[i] == SPI_OK_INSERT)
         {
             dsa_query_pointer = (shared_storage->store + i)->query_text.query_pos;

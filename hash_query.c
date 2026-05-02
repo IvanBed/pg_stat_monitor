@@ -21,7 +21,6 @@
 static pgsmLocalState           pgsmStateLocal;
 
 static pgsmPerQueryLocalStorage pgsm_per_query_local_storage;
-
 static Latch                   *latch;
 
 static PGSM_HASH_TABLE_HANDLE pgsm_create_bucket_hash(pgsmSharedState *pgsm, dsa_area *dsa);
@@ -94,6 +93,21 @@ pgsm_get_shared_area_size(void)
 	return sz;
 }
 
+static Size
+pgsm_per_query_area_size(void)
+{
+	Size		sz = DSA_STORE_MAX_SIZE;
+	return MAXALIGN(sz);
+}
+
+static Size
+pgsm_get_per_query_shared_size(void)
+{
+    Size sz = sizeof(pgsmPerQuerySharedStorage);
+    sz += pgsm_per_query_area_size();  
+    return sz;
+}
+
 /* There will be a part of pg_stat_per_query, a few funcs that init the storage in the shared memory and init the dsa area, 
    those funcs will be called only if the guc flag pgsm_collect_per_query_statistics is true. 
    
@@ -143,7 +157,7 @@ init_storage_shmem_if_needed(void)
     bool found;
     LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
-    shared_storage = ShmemInitStruct("PerQuerySharedStorage", sizeof(pgsmPerQuerySharedStorage), &found);
+    shared_storage = ShmemInitStruct("PerQuerySharedStorage", pgsm_get_per_query_shared_size(), &found);
     if(!found) 
 	{
         dsa_area   *dsa;
@@ -153,19 +167,21 @@ init_storage_shmem_if_needed(void)
         shared_storage->store             = (pgsmPerQueryEntry*) ShmemAlloc(sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         shared_storage->free_space_bitmap = (uint8_t*) ShmemAlloc(sizeof(uint8_t) * STORE_CAPACITY);
         shared_storage->lock              = &(GetNamedLWLockTranche("shmem_storage_chunk"))->lock;
-        
 		SpinLockInit(&shared_storage->mutex);
 
         p += MAXALIGN(sizeof(pgsmPerQuerySharedStorage));
 		shared_storage->raw_dsa_area = p;
 		
-        /*dsa = dsa_create_in_place(shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
+        dsa = dsa_create_in_place(shared_storage->raw_dsa_area, pgsm_per_query_area_size(), LWLockNewTrancheId(), 0);
 		
         dsa_pin(dsa);
-		dsa_set_size_limit(dsa, DSA_STORE_MAX_SIZE);
-         
+		dsa_set_size_limit(dsa, pgsm_per_query_area_size());
+        
+		if (pgsm_enable_overflow)
+			dsa_set_size_limit(dsa, -1);
+
         dsa_detach(dsa);
-*/
+
         memset(shared_storage->store, 0, sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         memset(shared_storage->free_space_bitmap, 0, sizeof(uint8_t) * STORE_CAPACITY);
 		
@@ -189,12 +205,11 @@ pgsm_attach_shmem_per_query_storage(void)
     elog(NOTICE, "attach_shmem 1");  
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
-    pgsm_per_query_local_storage.dsa  = dsa_create_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, DSA_STORE_MAX_SIZE, LWLockNewTrancheId(), 0);
-	//pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
-	dsa_set_size_limit(pgsm_per_query_local_storage.dsa, DSA_STORE_MAX_SIZE);
+	pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
 
 	elog(NOTICE, "attach_shmem 2"); 
 	dsa_pin_mapping(pgsm_per_query_local_storage.dsa);
+    
 
 	MemoryContextSwitchTo(oldcontext);
 }

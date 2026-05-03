@@ -287,6 +287,8 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  const char *query,
 				  char *comments,
 				  int comments_len,
+				  char const *per_node_plan_info,
+				  char const *locks_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -808,7 +810,9 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	dsa_area                   *dsa;	
     pgsmPerQueryEntry           per_query_entry;
     bool                        res;
-
+    char const                 *per_node_plan_info_str;
+	char const                 *locks_info_str;
+    uint64_t                    execution_id;
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
 	{
@@ -899,75 +903,21 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		pgsm_store(entry);
 	}
 
-	//Per query part here
-    /*
-	if (pgsm_collect_per_query_statistics && queryId != INT64CONST(0) && pgsm_enabled(nesting_level) && check_thresholds(queryDesc->totaltime, other args, i will add it futher))
-	{
-	    
-		pgsm_create_per_query_entry(
-		                            LONG LIST OF STATS
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-									
-									per_query_entry);
-
-        per_query_entry.lock_info.lock_info_pointer = get_lock_info();
-  		per_query_entry.plan_info.plan_pointer      = get_plan_info();
-
-	    res = pgsm_add_per_query_entry(per_query_entry);
-	    if (!res)
-		{
-		    size_t counter = FIXED COUNT OF ITERS TO AVOID ENDLESS LOOP
-			
-			set latch and sleep for a while
-			while(i < counter) {sleep and i++}
- 			
-		}
-	    free all allocated data within the entry, it will be query text, lock info text and plan info text
-		pgsm_destroy_per_query_entry(per_query_entry);
-	}
-	
-	*/
-    //is_monitoring_target(queryDesc) queryDesc->operation == CMD_SELECT
-
-	//elog(NOTICE, "storage_rel_oid %ld", storage_rel_oid.rel_oid);
-
-    char const * plan_info_str = generate_plan_info(queryDesc);
-    elog(NOTICE, "%s", plan_info_str);
-
-    char const * locks_info_str = generate_locks_info(GetLockStatusData());
-    elog(NOTICE, "%s", locks_info_str);
-
-    bool temp_flag = false;
-    if (temp_flag && is_monitoring_target(queryDesc) && queryDesc->totaltime)
+    if (is_monitoring_target(queryDesc) && queryDesc->totaltime)
     {
-		/*test part*/
-    	elog(NOTICE, "get_per_query_dsa_area()");
-        shared_storage = get_per_query_shared_storage();	
-    	elog(NOTICE, "get_per_query_shared_storage()");
-    	dsa            = get_per_query_dsa_area();
+
+        shared_storage         = get_per_query_shared_storage();	
+    	dsa                    = get_per_query_dsa_area();
+        per_node_plan_info_str = generate_plan_info(queryDesc);
+        locks_info_str         = generate_locks_info(GetLockStatusData());
+    	execution_id           = generate_unique_execution_id();
     
-    
-    	uint64_t id = generate_unique_execution_id();
-    
-        //elog(NOTICE, "text %s", queryDesc->sourceText);
-        //elog(NOTICE, "id %ld", id);
-    	pgsm_create_per_query_entry(id,	/* entry */
+    	pgsm_create_per_query_entry(execution_id,	/* entry */
             						queryDesc->sourceText, /* query */
             						NULL, /* comments */
             						0,	/* comments length */
+									per_node_plan_info_str,
+									locks_info_str,									
             						NULL, /* PlanInfo */
             						NULL,	/* SysInfo */
             						NULL, /* ErrorInfo */
@@ -991,6 +941,9 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
             						&per_query_entry);	/* kind */
     
         pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry);
+
+		pfree(per_node_plan_info_str);
+		pfree(locks_info_str);
 	}
 
 	if (prev_ExecutorEnd)
@@ -1571,6 +1524,8 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  const char *query,
 				  char *comments,
 				  int comments_len,
+				  char const *per_node_plan_info,
+				  char const *locks_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -1586,12 +1541,12 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 {
 	//pgsmPerQueryEntry *per_query_entry = (pgsmPerQueryEntry*) palloc(sizeof(pgsmPerQueryEntry));
     
-	per_query_entry->execution_id             = execution_id;
-    per_query_entry->query_text.query_pointer = query;
+	per_query_entry->execution_id                       = execution_id;
+    per_query_entry->query_text.query_pointer           = query;
+	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;
+	per_query_entry->locks_info_text.locks_info_pointer = locks_info;
 
-	per_query_entry->plan_info_text.plan_info_pointer    = "TEST STRING FOR PLAN";
-
-	per_query_entry->locks_info_text.locks_info_pointer  = "TEST STRING FOR LOCKS";
+    per_query_entry->counters.time.total_time           = exec_total_time;
 
 	if (sys_info)
 	{

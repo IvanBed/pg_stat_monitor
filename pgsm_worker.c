@@ -94,9 +94,10 @@ write_data_to_rel(void)
     dsa_area    *dsa;
     //dsa_pointer  dsa_text_pointer;
 	
-    char	     *query_text;
-    char	     *plan_info_text;    
-    
+    char	    *query_text;
+    char	    *per_node_plan_info;    
+    char        *locks_info;
+
     shared_storage = get_per_query_shared_storage();
     dsa            = get_dsa_area();
     
@@ -115,8 +116,6 @@ write_data_to_rel(void)
     SPI_connect();
     PushActiveSnapshot(GetTransactionSnapshot());
 
-    query_text    = NULL;
-    plan_info_text = NULL;
 
     for(size_t i = 0; i < shared_storage->store_capacity; i++)
     {
@@ -125,9 +124,13 @@ write_data_to_rel(void)
             StringInfoData buf;
             initStringInfo(&buf);
             
-            query_text = dsa_get_address(dsa, shared_storage->store[i].query_text.query_pos);
+            query_text         = dsa_get_address(dsa, shared_storage->store[i].query_text.query_pos);
+            per_node_plan_info = dsa_get_address(dsa, shared_storage->store[i].plan_info_text.plan_info_pos);
+            locks_info         = dsa_get_address(dsa, shared_storage->store[i].locks_info_text.locks_info_pos);
             // make a query to db
-            appendStringInfo(&buf, "INSERT INTO %s (execution_id, query) VALUES (%ld, '%s')", REL_NAME, shared_storage->store[i].execution_id, query_text);
+            appendStringInfo(&buf, "INSERT INTO %s (execution_id, query, exec_time, per_node_plan_info, lock_info) VALUES (%ld, $$%s$$, %f, '%s', '%s')", 
+                    REL_NAME, shared_storage->store[i].execution_id, 
+                            query_text, shared_storage->store[i].counters.time.total_time, per_node_plan_info, locks_info);
             
             ret[i] = SPI_execute(buf.data, false, 0);
             pfree(buf.data);

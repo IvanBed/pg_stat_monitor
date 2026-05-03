@@ -51,7 +51,6 @@ add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa
     {
         return;
     }
-    dsa_pointer dsa_pointer_handle;
 
     /*query vars*/   
     size_t      query_len;
@@ -72,7 +71,6 @@ add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa
     locks_text = entry->locks_info_text.locks_info_pointer;
     locks_len  = strlen(locks_text); 
 
- 
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
     
     if (!dsa_store(dsa, query_text, query_len, &(entry->query_text.query_pos)))
@@ -81,7 +79,7 @@ add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa
     if (!dsa_store(dsa, plan_text, plan_len, &(entry->plan_info_text.plan_info_pos)))
         elog(NOTICE, "Could not add plan text into the DSA");
     
-    if (!dsa_store(dsa, query_text, query_len, &(entry->locks_info_text.locks_info_pos)))
+    if (!dsa_store(dsa, locks_text, locks_len, &(entry->locks_info_text.locks_info_pos)))
         elog(NOTICE, "Could not add locks info text into the DSA");
 
     memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
@@ -178,7 +176,7 @@ pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *ds
     elog(NOTICE, "pos %ld", pos);
     if (pos != STORAGE_FULL)
     {
-        add_el_internal(shared_storage, dsa, entry, pos);
+        add_el_internal_release(shared_storage, dsa, entry, pos);
         return true;
     }
     else
@@ -201,7 +199,15 @@ pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, i
             dsa_query_pointer = (shared_storage->store + i)->query_text.query_pos;
             if(DsaPointerIsValid(dsa))
                 dsa_free(dsa, dsa_query_pointer);
+
+            dsa_query_pointer = (shared_storage->store + i)->plan_info_text.plan_info_pos;
+            if(DsaPointerIsValid(dsa))
+                dsa_free(dsa, dsa_query_pointer);
             
+            dsa_query_pointer = (shared_storage->store + i)->locks_info_text.locks_info_pos;
+            if(DsaPointerIsValid(dsa))
+                dsa_free(dsa, dsa_query_pointer);
+
             shared_storage->free_space_bitmap[i] = FREE;
         }
     }

@@ -101,7 +101,7 @@ static uint32 pgsm_client_ip = PGSM_INVALID_IP_MASK;
 /* Per query vars part*/
 static pg_atomic_uint64 seq = {0};
 
-static Oid storage_rel_oid;
+static StorageRelOidInfo storage_rel_oid;
 
 
 /* The array to store outer layer query id*/
@@ -305,7 +305,11 @@ static void pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
 static void init_worker(BackgroundWorker *worker, long);
 static bool check_thresholds();
 static uint64_t generate_unique_execution_id(void);
-static bool check_storage_rel(QueryDesc *queryDesc);
+static bool is_monitoring_target(QueryDesc *queryDesc);
+
+/* pg_per_query_helper.c functions */
+static char const *generate_plan_info(QueryDesc const *queryDesc);
+static char const *generate_locks_info(LockData const *locks_data);
 
 static Oid get_rel_oid(const char *schema, const char *table);
 
@@ -403,7 +407,8 @@ _PG_init(void)
         init_worker(&worker, pgsm_worker_timeout);
         RegisterBackgroundWorker(&worker);
 		
-		//storage_rel_oid = get_rel_oid("public", "pg_stat_per_query");
+		storage_rel_oid.is_init = false;
+
 	}
 
 }
@@ -631,11 +636,27 @@ pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
 	if (getrusage(RUSAGE_SELF, &rusage_start) != 0)
 		elog(DEBUG1, "[pg_stat_monitor] pgsm_ExecutorStart: failed to execute getrusage.");
 
+    
+	if (pgsm_collect_per_query_statistics)
+	{
+        queryDesc->instrument_options |= INSTRUMENT_TIMER; 
+        queryDesc->instrument_options |= INSTRUMENT_BUFFERS;
+        queryDesc->instrument_options |= INSTRUMENT_ROWS;
+        queryDesc->instrument_options |= INSTRUMENT_WAL;
+	}	
+
 	if (prev_ExecutorStart)
 		prev_ExecutorStart(queryDesc, eflags);
 	else
 		standard_ExecutorStart(queryDesc, eflags);
 
+	/*Init pg_per_query rel oid if it has not been initialized yet*/
+	if (!storage_rel_oid.is_init)
+	{
+        storage_rel_oid.rel_oid     = get_rel_oid("public", "pg_stat_per_query");
+		storage_rel_oid.is_init = true;
+	}
+	
 	/*
 	 * If query has queryId zero, don't track it.  This prevents double
 	 * counting of optimizable statements that are directly contained in
@@ -919,10 +940,18 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	}
 	
 	*/
-    //check_storage_rel(queryDesc)
-	elog(NOTICE, "storage_rel_oid %ld", storage_rel_oid);
+    //is_monitoring_target(queryDesc) queryDesc->operation == CMD_SELECT
 
-    if (queryDesc->operation == CMD_SELECT)
+	//elog(NOTICE, "storage_rel_oid %ld", storage_rel_oid.rel_oid);
+
+    char const * plan_info_str = generate_plan_info(queryDesc);
+    elog(NOTICE, "%s", plan_info_str);
+
+    char const * locks_info_str = generate_locks_info(GetLockStatusData());
+    elog(NOTICE, "%s", locks_info_str);
+
+    bool temp_flag = false;
+    if (temp_flag && is_monitoring_target(queryDesc) && queryDesc->totaltime)
     {
 		/*test part*/
     	elog(NOTICE, "get_per_query_dsa_area()");
@@ -933,8 +962,8 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     
     	uint64_t id = generate_unique_execution_id();
     
-        elog(NOTICE, "text %s", queryDesc->sourceText);
-        elog(NOTICE, "id %ld", id);
+        //elog(NOTICE, "text %s", queryDesc->sourceText);
+        //elog(NOTICE, "id %ld", id);
     	pgsm_create_per_query_entry(id,	/* entry */
             						queryDesc->sourceText, /* query */
             						NULL, /* comments */
@@ -1560,9 +1589,9 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 	per_query_entry->execution_id             = execution_id;
     per_query_entry->query_text.query_pointer = query;
 
-	per_query_entry->plan_info_text.plan_info_pointer   = "TEST STRING FOR PLAN";
+	per_query_entry->plan_info_text.plan_info_pointer    = "TEST STRING FOR PLAN";
 
-	per_query_entry->locks_info_text.locks_info_pointer   = "TEST STRING FOR LOCKS";
+	per_query_entry->locks_info_text.locks_info_pointer  = "TEST STRING FOR LOCKS";
 
 	if (sys_info)
 	{
@@ -1628,7 +1657,6 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 	// parrallel_workers
 	per_query_entry->counters.parallel_workers_to_launch = parallel_workers_to_launch;
 	per_query_entry->counters.parallel_workers_launched = parallel_workers_launched;
-
 }
 
 static void
@@ -4359,16 +4387,39 @@ init_worker(BackgroundWorker *worker, long timeout)
 }
 
 static bool 
-check_storage_rel(QueryDesc *queryDesc)
+is_monitoring_target(QueryDesc /*const*/ *queryDesc)
 {
-    EState     *query_state    = queryDesc->estate;
-    Relation   *rels_arr       = query_state->es_relations;
+    if (!queryDesc)
+	{
+		return false;
+	}
+
+    EState   *query_state;
+    Relation *rels_arr;
+    Relation  rel;
+
+	query_state    = queryDesc->estate;
+    if (!query_state)
+	{
+        elog(NOTICE, "query_state is null");
+		return true;
+	}
+
+	rels_arr       = query_state->es_relations;
+	if (!rels_arr)
+	{
+        elog(NOTICE, "rels_arr is null");
+		return true;
+	}
 	
 	for (size_t rel_idx = 0; rel_idx < query_state->es_range_table_size; rel_idx++)
     {
-        if (rels_arr[rel_idx]->rd_id == storage_rel_oid)
+        //elog(NOTICE, "in loop, idx %ld", rel_idx);
+		rel = rels_arr[rel_idx];
+		if (rel && rel->rd_id == storage_rel_oid.rel_oid)
 		    return false;          
     }	
+
 	return true;
 }
 
@@ -4422,3 +4473,4 @@ Datum pgsm_log_print(PG_FUNCTION_ARGS)
 LWLockRelease(storage->lock);
     PG_RETURN_VOID();
 }
+

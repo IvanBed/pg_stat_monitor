@@ -63,7 +63,8 @@
 //pg_stat_per_query include
 #include "pg_stat_per_query_storage.h"
 #include "postmaster/interrupt.h"
-#include "storage/latch.h"  
+#include "storage/latch.h"
+#include "storage/lock.h"
 #include "utils/rel.h"
 
 #include "catalog/namespace.h"

@@ -239,6 +239,12 @@ typedef struct pgsmPerQueryEntry
  * Global shared store for per query statistics
  */
 
+typedef struct StorageRelOidInfo
+{
+    Oid rel_oid;
+	bool is_init;
+} StorageRelOidInfo;
+
 typedef struct pgsmPerQuerySharedStorage
 {
 	LWLock	          *lock;			/* protects list search/modification */

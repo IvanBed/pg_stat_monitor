@@ -44,14 +44,8 @@ dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
 }
 
 static void 
-add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
 {
-    elog(NOTICE, "add_el_internal!");
-    if (!entry)
-    {
-        return;
-    }
-
     /*query vars*/   
     size_t      query_len;
     char       *query_text;
@@ -61,6 +55,12 @@ add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa
     /*locks info vars*/
     size_t      locks_len;
     char       *locks_text;     
+
+    elog(NOTICE, "add_el_internal!");
+    if (!entry)
+    {
+        return;
+    }
 
     query_text = entry->query_text.query_pointer;
     query_len  = strlen(query_text); 
@@ -88,95 +88,20 @@ add_el_internal_release(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa
     LWLockRelease(shared_storage->lock);
 }
 
-static void 
-add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
-{
-    elog(NOTICE, "add_el_internal!");
-    if (!entry)
-    {
-        return;
-    }
-    dsa_pointer dsa_pointer_handle;
-
-    /*query vars*/   
-    char	   *query_buff;
-    
-    size_t      query_len;
-    char       *query_text;
-    /*plan info vars*/
-    char	   *plan_buff;
-    //dsa_pointer dsa_plan_pointer;
-    size_t      plan_len;
-    char       *plan_text;      
-    /*locks info vars*/
-    char	   *locks_buff;
-    //dsa_pointer dsa_locks_pointer;
-    size_t      locks_len;
-    char       *locks_text;     
-
-    query_text = entry->query_text.query_pointer;
-    query_len  = strlen(query_text); 
-
-    plan_text  = entry->plan_info_text.plan_info_pointer;
-    plan_len   = strlen(plan_text); 
-
-    locks_text = entry->locks_info_text.locks_info_pointer;
-    locks_len  = strlen(locks_text); 
-
- 
-    LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
-
-    dsa_pointer_handle = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
-    elog(NOTICE, "dsa_allocate_extended for query");   
-    if (DsaPointerIsValid(dsa_pointer_handle))
-    {
-        elog(NOTICE, "DsaPointerIsValid");  
-        query_buff = dsa_get_address(dsa, dsa_pointer_handle);
-        memcpy(query_buff, query_text, query_len);
-        query_buff[query_len] = 0;
-        entry->query_text.query_pos = dsa_pointer_handle;
-    } 
-
-    /*dsa_pointer_handle = dsa_allocate_extended(dsa, plan_len + 1,  DSA_ALLOC_ZERO);
-    elog(NOTICE, "dsa_allocate_extended for plan info");   
-    if (DsaPointerIsValid(dsa_pointer_handle))
-    {
-        elog(NOTICE, "DsaPointerIsValid");  
-        plan_buff = dsa_get_address(dsa, dsa_pointer_handle);
-        memcpy(query_buff, query_text, query_len);
-        query_buff[query_len] = 0;
-    } 
-
-    dsa_pointer_handle = dsa_allocate_extended(dsa, query_len + 1,  DSA_ALLOC_ZERO);
-    elog(NOTICE, "dsa_allocate_extended for дщслы info");   
-    if (DsaPointerIsValid(dsa_pointer_handle))
-    {
-        elog(NOTICE, "DsaPointerIsValid");  
-        query_buff = dsa_get_address(dsa, dsa_pointer_handle);
-        memcpy(query_buff, query_text, query_len);
-        query_buff[query_len] = 0;
-    } */
-
-    memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
-    shared_storage->free_space_bitmap[pos] = ALLOCATED;
-
-    LWLockRelease(shared_storage->lock);
-}
-
 PGDLLEXPORT bool 
 pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry)
 {
+    int pos;
+
     if (!entry)
         return false;
 
-    elog(NOTICE, "add_el NEW!");    
-    int pos;
-    
+    elog(NOTICE, "add_el NEW!");     
     pos = find_pos(shared_storage);
-    elog(NOTICE, "pos %ld", pos);
+    elog(NOTICE, "pos %d", pos);
     if (pos != STORAGE_FULL)
     {
-        add_el_internal_release(shared_storage, dsa, entry, pos);
+        add_el_internal(shared_storage, dsa, entry, pos);
         return true;
     }
     else

@@ -410,7 +410,6 @@ _PG_init(void)
         RegisterBackgroundWorker(&worker);
 		
 		storage_rel_oid.is_init = false;
-
 	}
 
 }
@@ -903,7 +902,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		pgsm_store(entry);
 	}
 
-    if (is_monitoring_target(queryDesc) && queryDesc->totaltime)
+    if (pgsm_collect_per_query_statistics && is_monitoring_target(queryDesc) && queryDesc->totaltime)
     {
 
         shared_storage         = get_per_query_shared_storage();	
@@ -940,7 +939,11 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     #endif
             						&per_query_entry);	/* kind */
     
-        pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry);
+        if (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry))
+		{
+            // add set latch to evoke worker 
+
+		}
 
 		pfree(per_node_plan_info_str);
 		pfree(locks_info_str);
@@ -1539,8 +1542,7 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  int parallel_workers_launched,
 				  pgsmPerQueryEntry *per_query_entry)
 {
-	//pgsmPerQueryEntry *per_query_entry = (pgsmPerQueryEntry*) palloc(sizeof(pgsmPerQueryEntry));
-    
+
 	per_query_entry->execution_id                       = execution_id;
     per_query_entry->query_text.query_pointer           = query;
 	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;
@@ -4344,14 +4346,14 @@ init_worker(BackgroundWorker *worker, long timeout)
 static bool 
 is_monitoring_target(QueryDesc /*const*/ *queryDesc)
 {
+    EState   *query_state;
+    Relation *rels_arr;
+    Relation  rel;
+
     if (!queryDesc)
 	{
 		return false;
 	}
-
-    EState   *query_state;
-    Relation *rels_arr;
-    Relation  rel;
 
 	query_state    = queryDesc->estate;
     if (!query_state)
@@ -4383,6 +4385,7 @@ get_rel_oid(char const *schema, char const *rel_name)
 {	    
 	Oid schema_oid;
 	Oid rel_oid;
+
 	schema_oid = get_namespace_oid(schema, false);
 	rel_oid    = get_relname_relid(rel_name, schema_oid);
 	return rel_oid;
@@ -4391,14 +4394,12 @@ get_rel_oid(char const *schema, char const *rel_name)
 static uint64_t 
 generate_unique_execution_id(void)
 {
-    
-    uint64_t now_us  = (uint64_t) GetCurrentTimestamp();  
-    uint64_t seq_val = pg_atomic_fetch_add_u64(&seq, 1);
-    /*elog(NOTICE, "generate_unique_execution_id func");
+    uint64_t now_us;
+    uint64_t seq_val;
 
-	elog(NOTICE, "test1 %ld", (now_us << 10) | (seq_val & 0xFFFFF));
-    elog(NOTICE, "test2 %ld", (now_us << 32) | (seq_val & 0xFFFFF));
-   */
+    now_us  = (uint64_t) GetCurrentTimestamp();  
+    seq_val = pg_atomic_fetch_add_u64(&seq, 1);
+
     return (now_us << 20) | (seq_val & 0xFFFFF);
 }
 
@@ -4425,7 +4426,7 @@ Datum pgsm_log_print(PG_FUNCTION_ARGS)
         } 
         elog(NOTICE, "--------------------------------------------------");       
     } 
-LWLockRelease(storage->lock);
+    LWLockRelease(storage->lock);
     PG_RETURN_VOID();
 }
 

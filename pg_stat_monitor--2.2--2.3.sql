@@ -220,7 +220,7 @@ REVOKE ALL ON FUNCTION pgsm_create_18_view FROM PUBLIC;
 
 GRANT SELECT ON pg_stat_monitor TO PUBLIC;
 
-CREATE TABLE pg_stat_per_query
+CREATE UNLOGGED TABLE pg_stat_per_query
 (
     userid              oid,  
     username            text,
@@ -228,7 +228,7 @@ CREATE TABLE pg_stat_per_query
     datname             text,
     client_ip           int8,
 
-    execution_id        int64,
+    execution_id        bigint,
     transaction_id      bigint, -- new field
     queryid             int8, 
     planid              int8,

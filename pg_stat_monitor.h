@@ -186,19 +186,19 @@ typedef enum AGG_KEY
 /* shared memory storage for the query */
 /*typedef struct CallTime
 {
-	double		total_time;		/* total execution time, in msec
-	double		min_time;		/* minimum execution time in msec
-	double		max_time;		/* maximum execution time in msec
-	double		mean_time;		/* mean execution time in msec
-	double		sum_var_time;	/* sum of variances in execution time in msec
+	double		total_time;		
+	double		min_time;		
+	double		max_time;		
+	double		mean_time;		
+	double		sum_var_time;	
 } CallTime;
 
 
 typedef struct PlanInfo
 {
-	int64		planid;			/* plan identifier
-	char		plan_text[PLAN_TEXT_LEN];	/* plan text
-	size_t		plan_len;		/* strlen(plan_text)
+	int64		planid;			
+	char		plan_text[PLAN_TEXT_LEN];	
+	size_t		plan_len;		
 } PlanInfo;
 */
 typedef struct pgsmHashKey
@@ -217,68 +217,64 @@ typedef struct pgsmHashKey
 /*typedef struct QueryInfo
 {
 	dsa_pointer parent_query;
-	int64		type;			/* type of query, options are query, info,
-								 * warning, error, fatal
+	int64		type;			
+								 
 	char		application_name[APPLICATIONNAME_LEN];
 	char		comments[COMMENTS_LEN];
-	char		relations[REL_LST][REL_LEN];	/* List of relation involved
-												 * in the query
-	int			num_relations;	/* Number of relation in the query
-	CmdType		cmd_type;		/* query command type
-								 * SELECT/UPDATE/DELETE/INSERT
+	char		relations[REL_LST][REL_LEN];	
+												
+	int			num_relations;	
+	CmdType		cmd_type;		
+								
 } QueryInfo;
 */
 /*typedef struct ErrorInfo
 {
-	int64		elevel;			/* error elevel
-	char		sqlcode[SQLCODE_LEN];	/* error sqlcode
-	char		message[ERROR_MESSAGE_LEN]; /* error message text
+	int64		elevel;			
+	char		sqlcode[SQLCODE_LEN];	
+	char		message[ERROR_MESSAGE_LEN]; 
 } ErrorInfo;
 */
 /*typedef struct Calls
 {
-	int64		calls;			/* # of times executed
-	int64		rows;			/* total # of retrieved or affected rows
-	double		usage;			/* usage factor
+	int64		calls;			
+	int64		rows;			
+	double		usage;			
 } Calls;
 */
 
 /*typedef struct Blocks
 {
-	int64		shared_blks_hit;	/* # of shared buffer hits
-	int64		shared_blks_read;	/* # of shared disk blocks read
-	int64		shared_blks_dirtied;	/* # of shared disk blocks dirtied
-	int64		shared_blks_written;	/* # of shared disk blocks written
-	int64		local_blks_hit; /* # of local buffer hits
-	int64		local_blks_read;	/* # of local disk blocks read
-	int64		local_blks_dirtied; /* # of local disk blocks dirtied
-	int64		local_blks_written; /* # of local disk blocks written
-	int64		temp_blks_read; /* # of temp blocks read
-	int64		temp_blks_written;	/* # of temp blocks written
-	double		shared_blk_read_time;	/* time spent reading shared blocks,
-										 * in msec
-	double		shared_blk_write_time;	/* time spent writing shared blocks,
-										 * in msec
-	double		local_blk_read_time;	/* time spent reading local blocks, in
-										 * msec
-	double		local_blk_write_time;	/* time spent writing local blocks, in
-										 * msec
-	double		temp_blk_read_time; /* time spent reading temp blocks, in msec
-	double		temp_blk_write_time;	/* time spent writing temp blocks, in
-										 * msec
+	int64		shared_blks_hit;	
+	int64		shared_blks_read;	
+	int64		shared_blks_dirtied;	
+	int64		shared_blks_written;	
+	int64		local_blks_hit; 
+	int64		local_blks_read;	
+	int64		local_blks_dirtied; 
+	int64		local_blks_written; 
+	int64		temp_blks_read;
+	int64		temp_blks_written;	
+	double		shared_blk_read_time;	
+										 
+	double		shared_blk_write_time;	
+										
+	double		local_blk_read_time;	
+										
+	double		local_blk_write_time;	
+										
+	double		temp_blk_read_time; 
+	double		temp_blk_write_time;	
+										
 
-	
-	 * Variables for local entry. The values to be passed to pgsm_update_entry
-	 * from pgsm_store.
-	 
-	instr_time	instr_shared_blk_read_time; /* time spent reading shared
-											 * blocks
-	instr_time	instr_shared_blk_write_time;	/* time spent writing shared
-												 * blocks
-	instr_time	instr_local_blk_read_time;	/* time spent reading local blocks
-	instr_time	instr_local_blk_write_time; /* time spent writing local blocks
-	instr_time	instr_temp_blk_read_time;	/* time spent reading temp blocks
-	instr_time	instr_temp_blk_write_time;	/* time spent writing temp blocks
+	instr_time	instr_shared_blk_read_time; 
+											
+	instr_time	instr_shared_blk_write_time;	
+												
+	instr_time	instr_local_blk_read_time;	
+	instr_time	instr_local_blk_write_time; 
+	instr_time	instr_temp_blk_read_time;
+	instr_time	instr_temp_blk_write_time;
 } Blocks;
 
 typedef struct JitInfo
@@ -339,12 +335,12 @@ typedef struct JitInfo
 	JitInfo		jitinfo;
 	ErrorInfo	error;
 	Wal_Usage	walusage;
-	int			resp_calls[MAX_RESPONSE_BUCKET];	/* execution time's in
-													 * msec 
-	int64		parallel_workers_to_launch; /* # of parallel workers planned
-											 * to be launched 
-	int64		parallel_workers_launched;	/* # of parallel workers actually
-											 * launched 
+	int			resp_calls[MAX_RESPONSE_BUCKET];	
+													 
+	int64		parallel_workers_to_launch; 
+											
+	int64		parallel_workers_launched;	
+											
 } Counters;
 */
 

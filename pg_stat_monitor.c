@@ -320,6 +320,8 @@ static Oid get_rel_oid(const char *schema, const char *table);
 dsa_area * get_per_query_dsa_area(void);
 pgsmPerQuerySharedStorage *get_per_query_shared_storage(void);
 MemoryContext get_per_query_local_mem_context(void);
+Latch *get_per_query_latch(void);
+
 
 void pgsm_per_query_request_shmem(void);
 void pgsm_per_query_startup(void);
@@ -806,6 +808,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     /* per query part declaration part */
 	pgsmPerQuerySharedStorage  *shared_storage;
 	dsa_area                   *dsa;	
+	Latch                      *latch;
     pgsmPerQueryEntry           per_query_entry;
     char const                 *per_node_plan_info_str;
 	char const                 *locks_info_str;
@@ -906,10 +909,12 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 
         shared_storage         = get_per_query_shared_storage();	
     	dsa                    = get_per_query_dsa_area();
+        latch                  = get_per_query_latch();
+
         per_node_plan_info_str = generate_plan_info(queryDesc);
         locks_info_str         = generate_locks_info(GetLockStatusData());
     	execution_id           = generate_unique_execution_id();
-    
+
     	pgsm_create_per_query_entry(execution_id,	/* entry */
             						queryDesc->sourceText, /* query */
             						NULL, /* comments */
@@ -941,6 +946,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         if (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry))
 		{
             // add set latch to evoke worker 
+			SetLatch(latch);
+			while (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry)) 
+			{
+                //(void) WaitLatch(latch, WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH, 10000, PG_WAIT_EXTENSION);  
+				/*add latch for man proccess*/
+				// temporary solution, then must be replaced with latch
+				pg_usleep(1000);
+			}
 		}
 
 		pfree(per_node_plan_info_str);

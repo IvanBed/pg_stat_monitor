@@ -21,7 +21,7 @@
 
 // it will be guc vars too
 #define REL_NAME "pg_stat_per_query"
-#define STORE_CAPACITY 25
+#define STORE_CAPACITY 1
 #define DSA_STORE_MAX_SIZE 1024 * 1024
 
 #define FREE 0 

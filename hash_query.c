@@ -150,11 +150,11 @@ static void
 init_storage_shmem_if_needed(void)
 {
     pgsmPerQuerySharedStorage *shared_storage;
+    bool found;
 
     pgsm_per_query_local_storage.dsa            = NULL;
 	pgsm_per_query_local_storage.shared_storage = NULL;
 
-    bool found;
     LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
     shared_storage = ShmemInitStruct("PerQuerySharedStorage", pgsm_get_per_query_shared_size(), &found);
@@ -232,6 +232,12 @@ MemoryContext
 get_per_query_local_mem_context(void)
 {
 	return pgsm_per_query_local_storage.pgsm_mem_cxt;
+}
+
+Latch *
+get_per_query_latch(void)
+{
+	return latch;
 }
 
 void 

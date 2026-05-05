@@ -235,6 +235,7 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
                 continue;
             }
         }
+
         if (instance->waitStart != 0)
             lock_wait_activity = TimestampDifferenceMilliseconds(instance->waitStart, end_timestamp) / 1000.0;
         else 

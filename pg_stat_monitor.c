@@ -303,15 +303,14 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  pgsmPerQueryEntry *per_query_entry);
 
 
-static void pgsm_destroy_per_query_entry(pgsmPerQueryEntry *entry);
 static void init_worker(BackgroundWorker *worker, long);
 static bool check_thresholds();
 static uint64_t generate_unique_execution_id(void);
 static bool is_monitoring_target(QueryDesc *queryDesc);
 
 /* pg_per_query_helper.c functions */
-static char const *generate_plan_info(QueryDesc const *queryDesc);
-static char const *generate_locks_info(LockData const *locks_data);
+char const *generate_plan_info(QueryDesc const *queryDesc);
+char const *generate_locks_info(LockData const *locks_data);
 
 static Oid get_rel_oid(const char *schema, const char *table);
 
@@ -804,14 +803,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	PlanInfo   *plan_ptr = NULL;
 	pgsmEntry  *entry = NULL;
 
-    // per query part declaration part
+    /* per query part declaration part */
 	pgsmPerQuerySharedStorage  *shared_storage;
 	dsa_area                   *dsa;	
     pgsmPerQueryEntry           per_query_entry;
-    bool                        res;
     char const                 *per_node_plan_info_str;
 	char const                 *locks_info_str;
     uint64_t                    execution_id;
+
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
 	{
@@ -942,7 +941,6 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         if (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry))
 		{
             // add set latch to evoke worker 
-
 		}
 
 		pfree(per_node_plan_info_str);

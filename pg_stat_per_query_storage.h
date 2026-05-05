@@ -248,7 +248,7 @@ typedef struct StorageRelOidInfo
 typedef struct pgsmPerQuerySharedStorage
 {
 	LWLock	          *lock;			/* protects list search/modification */
-	slock_t		       mutex;			/* protects following fields only: */
+	//slock_t		       mutex;			/* protects following fields only: */
 	void	          *raw_dsa_area;	/* DSA area pointer to store query texts for interproccess communication */
 	pgsmPerQueryEntry *store;
 

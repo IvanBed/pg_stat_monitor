@@ -279,44 +279,41 @@ typedef struct pgsmHashKey
 
 typedef struct JitInfo
 {
-	int64		jit_functions;	/* total number of JIT functions emitted
-	double		jit_generation_time;	/* total time to generate jit code
-	int64		jit_inlining_count; /* number of times inlining time has been
-									 * > 0
-	double		jit_deform_time;	/* total time to deform tuples in jit code
-	int64		jit_deform_count;	/* number of times deform time has been >
-									 * 0
-	double		jit_inlining_time;	/* total time to inline jit code
-	int64		jit_optimization_count; /* number of times optimization time
-										 * has been > 0
-	double		jit_optimization_time;	/* total time to optimize jit code
-	int64		jit_emission_count; /* number of times emission time has been
-									 * > 0
-	double		jit_emission_time;	/* total time to emit jit code
+	int64		jit_functions;	
+	double		jit_generation_time;	
+	int64		jit_inlining_count; 
+									
+	double		jit_deform_time;	
+	int64		jit_deform_count;	
+									 
+	double		jit_inlining_time;	
+	int64		jit_optimization_count; 
+										 
+	double		jit_optimization_time;	
+	int64		jit_emission_count; 
+									
+	double		jit_emission_time;
 
-	/*
-	 * Variables for local entry. The values to be passed to pgsm_update_entry
-	 * from pgsm_store.
-	
-	instr_time	instr_generation_counter;	/* generation counter
-	instr_time	instr_inlining_counter; /* inlining counter
-	instr_time	instr_deform_counter;	/* deform counter
-	instr_time	instr_optimization_counter; /* optimization counter
-	instr_time	instr_emission_counter; /* emission counter
+
+	instr_time	instr_generation_counter;	
+	instr_time	instr_inlining_counter;
+	instr_time	instr_deform_counter;	
+	instr_time	instr_optimization_counter;
+	instr_time	instr_emission_counter; 
 } JitInfo;
 */
 /*typedef struct SysInfo
 {
-	double		utime;			/* user cpu time
-	double		stime;			/* system cpu time
+	double		utime;			
+	double		stime;			
 } SysInfo;
 */
 /*typedef struct Wal_Usage
 {
-	int64		wal_records;	/* # of WAL records generated
-	int64		wal_fpi;		/* # of WAL full page images generated
-	uint64		wal_bytes;		/* total amount of WAL bytes generated
-	int64		wal_buffers_full;	/* # of times the WAL buffers became full
+	int64		wal_records;	
+	int64		wal_fpi;		
+	uint64		wal_bytes;		
+	int64		wal_buffers_full;	
 } Wal_Usage;
 */
 
@@ -373,6 +370,7 @@ typedef struct pgsmEntry
 typedef struct pgsmSharedState
 {
 	LWLock	   *lock;			/* protects hashtable search/modification */
+	// this lock should be removed soon
 	slock_t		mutex;			/* protects following fields only: */
 	pg_atomic_uint64 current_wbucket;
 	pg_atomic_uint64 prev_bucket_sec;

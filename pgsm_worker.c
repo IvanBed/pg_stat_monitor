@@ -88,11 +88,9 @@ write_data_to_rel(void)
     pgsmPerQuerySharedStorage *shared_storage;
     size_t ret_arr_size;
     int *ret;
-    MemoryContext oldcontext;
 
     //Statistics vars declaration
     dsa_area    *dsa;
-    //dsa_pointer  dsa_text_pointer;
 	
     char	    *query_text;
     char	    *per_node_plan_info;    
@@ -100,10 +98,7 @@ write_data_to_rel(void)
 
     shared_storage = get_per_query_shared_storage();
     dsa            = get_dsa_area();
-    
-    // Use TopMemoryContext to avoid mem leaks
-    oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-    
+      
     LWLockAcquire(shared_storage->lock, LW_SHARED);
 
     ret_arr_size   = sizeof(int) * shared_storage->store_capacity;
@@ -153,7 +148,6 @@ write_data_to_rel(void)
     
     pfree(ret);
 
-    MemoryContextSwitchTo(oldcontext);
 }
 
 PGDLLEXPORT void 

@@ -284,7 +284,9 @@ static void pgsm_lock_release(pgsmSharedState *pgsm);
 
 static void
 pgsm_create_per_query_entry(uint64_t execution_id,
+                  TransactionId xid,
 				  const char *query,
+				  CmdType cmd_type,
 				  char *comments,
 				  int comments_len,
 				  char const *per_node_plan_info,
@@ -804,8 +806,9 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	PlanInfo	plan_info;
 	PlanInfo   *plan_ptr = NULL;
 	pgsmEntry  *entry = NULL;
-
-    /* per query part declaration part */
+   
+    
+	/* per query part declaration part */
 	pgsmPerQuerySharedStorage  *shared_storage;
 	dsa_area                   *dsa;	
 	Latch                      *latch;
@@ -813,6 +816,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     char const                 *per_node_plan_info_str;
 	char const                 *locks_info_str;
     uint64_t                    execution_id;
+    TransactionId               xid;
 
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
@@ -907,22 +911,41 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     if (pgsm_collect_per_query_statistics && is_monitoring_target(queryDesc) && queryDesc->totaltime)
     {
 
-        shared_storage         = get_per_query_shared_storage();	
+        /* We should use our mem context to prevent any memory leaks*/
+        //MemoryContext oldctx; 
+		
+		//oldctx = MemoryContextSwitchTo();
+		shared_storage         = get_per_query_shared_storage();	
     	dsa                    = get_per_query_dsa_area();
         latch                  = get_per_query_latch();
 
         per_node_plan_info_str = generate_plan_info(queryDesc);
         locks_info_str         = generate_locks_info(GetLockStatusData());
-    	execution_id           = generate_unique_execution_id();
+		execution_id           = generate_unique_execution_id();
+        xid                    = GetCurrentTransactionId();
+        
+		/* think over how to rewrite this part correctly*/
+		sys_info.utime = 0;
+		sys_info.stime = 0;
+
+		if (getrusage(RUSAGE_SELF, &rusage_end) != 0)
+			elog(DEBUG1, "[pg_stat_monitor] pgsm_ExecutorEnd: Failed to execute getrusage.");
+		else
+		{
+			sys_info.utime = time_diff(rusage_end.ru_utime, rusage_start.ru_utime);
+			sys_info.stime = time_diff(rusage_end.ru_stime, rusage_start.ru_stime);
+		}
 
     	pgsm_create_per_query_entry(execution_id,	/* entry */
+		                            xid,
             						queryDesc->sourceText, /* query */
-            						NULL, /* comments */
+            						queryDesc->operation,
+									NULL, /* comments */
             						0,	/* comments length */
 									per_node_plan_info_str,
 									locks_info_str,									
             						NULL, /* PlanInfo */
-            						NULL,	/* SysInfo */
+            						&sys_info,	/* SysInfo */
             						NULL, /* ErrorInfo */
             						0,	/* plan_total_time */
             						queryDesc->totaltime->total * 1000.0, /* exec_total_time */
@@ -945,19 +968,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     
         if (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry))
 		{
-            // add set latch to evoke worker 
+            /*  if we can not add the entry into the storage we call the worker and go on to not stop the main proccess */ 
 			SetLatch(latch);
-			while (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry)) 
-			{
-                //(void) WaitLatch(latch, WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH, 10000, PG_WAIT_EXTENSION);  
-				/*add latch for man proccess*/
-				// temporary solution, then must be replaced with latch
-				pg_usleep(1000);
-			}
 		}
 
 		pfree(per_node_plan_info_str);
 		pfree(locks_info_str);
+
+		//MemoryContextSwitchTo(oldctx);
 	}
 
 	if (prev_ExecutorEnd)
@@ -1535,7 +1553,9 @@ pg_get_client_addr(bool *ok)
 
 static void
 pgsm_create_per_query_entry(uint64_t execution_id,
+                  TransactionId xid, 
 				  const char *query,
+				  CmdType cmd_type,
 				  char *comments,
 				  int comments_len,
 				  char const *per_node_plan_info,
@@ -1553,13 +1573,26 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  int parallel_workers_launched,
 				  pgsmPerQueryEntry *per_query_entry)
 {
+    bool found_client_addr = false;
 
 	per_query_entry->execution_id                       = execution_id;
-    per_query_entry->query_text.query_pointer           = query;
+    //per_query_entry->xid
+
+	per_query_entry->query_text.query_pointer           = query;
 	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;
 	per_query_entry->locks_info_text.locks_info_pointer = locks_info;
 
     per_query_entry->counters.time.total_time           = exec_total_time;
+    per_query_entry->counters.info.cmd_type             = cmd_type;
+
+	if (pgsm_track_application_names && app_name_len > 0)
+		_snprintf(per_query_entry->counters.info.application_name, app_name, app_name_len + 1, APPLICATIONNAME_LEN);
+
+
+	/*if (!pgsm_client_ip_is_valid())
+		pgsm_client_ip = pg_get_client_addr(&found_client_addr);
+     
+	per_query_entry->key.ip = pgsm_client_ip;*/
 
 	if (sys_info)
 	{

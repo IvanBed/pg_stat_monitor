@@ -2,7 +2,8 @@
 //#define INDENT
 /* Therer are helper functions that generate strings from statistics info*/
 
-void add_tabs(StringInfoData *res_buf, size_t tabs_cnt)
+static void 
+add_tabs(StringInfoData *res_buf, size_t tabs_cnt)
 {
     for (size_t i = 0; i < tabs_cnt; i++)
         appendStringInfo(res_buf, "    ");
@@ -100,6 +101,7 @@ generate_plan_info(QueryDesc const *queryDesc)
     dfs_plan_state(queryDesc->planstate, &buf, 0);
     return buf.data;
 }
+
 /*RowLock on orders (transaction 12345) [mode: ExclusiveLock] [wait: 45ms] [relation: orders_pkey]*/
 static void 
 write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCKMODE mode, double lock_wait_activity, StringInfoData *res_buf)
@@ -132,18 +134,23 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             rel_name = get_rel_name(instance->locktag.locktag_field2);
             appendStringInfo(res_buf, "Realtion lock, type %s\n\tdb: %s, relation: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, pid, (uint64_t)lock_wait_activity);
 
-            // The same point as 107
-            //pfree(rel_name);
+            pfree(db_name);
+            pfree(rel_name);
             break;
         case LOCKTAG_DATABASE_FROZEN_IDS:
             db_name  = get_database_name(instance->locktag.locktag_field1); 
             appendStringInfo(res_buf, "Database frozen lock, type %s\n\tdb: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, pid, (uint64_t)lock_wait_activity);
+            
+            pfree(db_name);
             break;
         case LOCKTAG_PAGE:
             db_name       = get_database_name(instance->locktag.locktag_field1);
             rel_name      = get_rel_name(instance->locktag.locktag_field2);
             page_blocknum = instance->locktag.locktag_field3;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %s, page block number: %d\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, pid, (uint64_t)lock_wait_activity);
+            
+            pfree(db_name);
+            pfree(rel_name);
             break;
         case LOCKTAG_TUPLE:
             db_name       = get_database_name(instance->locktag.locktag_field1);
@@ -151,6 +158,9 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             page_blocknum = instance->locktag.locktag_field3;
             page_offset   = instance->locktag.locktag_field4;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %sn\t page block number: %d, offset within page %d \n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, page_offset, pid, (uint64_t)lock_wait_activity);
+            
+            pfree(db_name);
+            pfree(rel_name);
             break;
         case LOCKTAG_TRANSACTION:
             transaction_xid  = instance->locktag.locktag_field1; 
@@ -223,7 +233,7 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
                 }
             }
         }
-        
+
         if (!granted)
         {
             if (instance->waitLockMode != NoLock)
@@ -244,6 +254,7 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
         write_lock_info(instance, (LockTagType) instance->locktag.locktag_type, mode, lock_wait_activity, buf);        
     }
 }
+
 //to think about returnig the StringInfoData not the cstring
 PGDLLEXPORT char const * 
 generate_locks_info(LockData const *locks_data)

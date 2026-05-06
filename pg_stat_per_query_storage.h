@@ -205,6 +205,7 @@ typedef struct Counters
 typedef struct pgsmPerQueryEntry
 {
 	uint64_t    execution_id;	   
+	//uint32_t    transaction_id;
 	char		datname[NAMEDATALEN];	/* database name */
 	char		username[NAMEDATALEN];	/* user name */
 	Counters	counters;		/* the statistics for this query */

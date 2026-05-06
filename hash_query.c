@@ -167,7 +167,6 @@ init_storage_shmem_if_needed(void)
         shared_storage->store             = (pgsmPerQueryEntry*) ShmemAlloc(sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         shared_storage->free_space_bitmap = (uint8_t*) ShmemAlloc(sizeof(uint8_t) * STORE_CAPACITY);
         shared_storage->lock              = &(GetNamedLWLockTranche("shmem_storage_chunk"))->lock;
-		//SpinLockInit(&shared_storage->mutex);
 
         p += MAXALIGN(sizeof(pgsmPerQuerySharedStorage));
 		shared_storage->raw_dsa_area = p;

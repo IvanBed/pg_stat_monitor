@@ -56,9 +56,10 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     size_t      locks_len;
     char       *locks_text;     
 
-    elog(NOTICE, "add_el_internal!");
+    //elog(NOTICE, "add_el_internal!");
     if (!entry)
     {
+        elog(NOTICE, "enrty is null!");
         return;
     }
 

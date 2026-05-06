@@ -123,8 +123,9 @@ write_data_to_rel(void)
             per_node_plan_info = dsa_get_address(dsa, shared_storage->store[i].plan_info_text.plan_info_pos);
             locks_info         = dsa_get_address(dsa, shared_storage->store[i].locks_info_text.locks_info_pos);
             // make a query to db
-            appendStringInfo(&buf, "INSERT INTO %s (execution_id, query, exec_time, per_node_plan_info, lock_info, cpu_user_time, cpu_sys_time, wal_records, wal_fpi, shared_blks_read, shared_blks_written, shared_blk_read_time, shared_blk_write_time) VALUES (%ld, $$%s$$, %f, '%s', '%s', %f, %f, %ld, %ld, %ld, %ld, %f, %f)", 
+            appendStringInfo(&buf, "INSERT INTO %s (execution_id, application_name, query, exec_time, per_node_plan_info, lock_info, cpu_user_time, cpu_sys_time, wal_records, wal_fpi, shared_blks_read, shared_blks_written, shared_blk_read_time, shared_blk_write_time) VALUES (%ld, $$%s$$, $$%s$$, %f, '%s', '%s', %f, %f, %ld, %ld, %ld, %ld, %f, %f)", 
                     REL_NAME, shared_storage->store[i].execution_id, 
+                            shared_storage->store[i].counters.info.application_name,                            
                             query_text, shared_storage->store[i].counters.time.total_time, per_node_plan_info, locks_info, 
                             shared_storage->store[i].counters.sysinfo.stime, shared_storage->store[i].counters.sysinfo.utime,
                             shared_storage->store[i].counters.walusage.wal_records, shared_storage->store[i].counters.walusage.wal_fpi,

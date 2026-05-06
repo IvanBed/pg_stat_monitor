@@ -21,9 +21,7 @@ write_node_name(NodeTag tag, StringInfoData *res_buf, size_t level)
         case T_SortState:
             appendStringInfo(res_buf, "Sort:\n");
             break;        
-        case T_SeqScanState:
-            appendStringInfo(res_buf, "Seq Scan:\n");
-            break;  
+
         case T_NestLoopState:
             appendStringInfo(res_buf, "Nested Loop:\n");
             break;
@@ -42,6 +40,138 @@ write_node_name(NodeTag tag, StringInfoData *res_buf, size_t level)
         case T_ModifyTableState:
             appendStringInfo(res_buf, "Modify Table:\n"); 
             break;   
+			
+            /*
+			 * scan nodes
+			 */
+
+        case T_SeqScanState:
+            appendStringInfo(res_buf, "Seq Scan:\n");
+            break;  
+
+		case T_SampleScanState:
+			appendStringInfo(res_buf, "Sample Scan:\n");
+			break;
+
+		case T_GatherState:
+			appendStringInfo(res_buf, "Gather:\n");
+			break;
+
+		case T_GatherMergeState:
+            appendStringInfo(res_buf, "Gather Merge:\n");
+			break;
+
+		case T_IndexScanState:
+            appendStringInfo(res_buf, "Index Scan:\n");
+			break;
+
+		case T_IndexOnlyScanState:
+			appendStringInfo(res_buf, "Index Only Scan:\n");
+			break;
+
+		case T_BitmapIndexScanState:
+	        appendStringInfo(res_buf, "Bitmap Index Scan:\n");
+			break;
+
+		case T_BitmapHeapScanState:
+	        appendStringInfo(res_buf, "Bitmap Heap Scan:\n");
+			break;
+
+		case T_TidScanState:
+	        appendStringInfo(res_buf, "Tuple Identifier Scan:\n");
+			break;
+
+		case T_TidRangeScanState:
+			appendStringInfo(res_buf, "Tuple Identifier Range Scan:\n");
+			break;
+
+		case T_SubqueryScanState:
+			appendStringInfo(res_buf, "Subquery Scan:\n");
+			break;
+
+		case T_FunctionScanState:
+			appendStringInfo(res_buf, "Function Scan:\n");
+			break;
+
+		case T_TableFuncScanState:
+			appendStringInfo(res_buf, "Table Functions Scan:\n");
+			break;
+
+		case T_CteScanState:
+			appendStringInfo(res_buf, "Common Table Expressions Scan:\n");
+			break;
+
+		case T_NamedTuplestoreScanState:
+			appendStringInfo(res_buf, "Named Tuple Store Scan:\n");
+			break;
+
+		case T_WorkTableScanState:
+			appendStringInfo(res_buf, "Work Table Scan:\n");
+			break;
+
+		case T_ForeignScanState:
+			appendStringInfo(res_buf, "Foreign Scan:\n");
+			break;
+
+		case T_CustomScanState:
+			appendStringInfo(res_buf, "Custom Scan:\n");
+			break;
+
+        //---------------------------------------------------------
+		case T_ResultState:
+			appendStringInfo(res_buf, "Result:\n");
+			break;
+
+		case T_ProjectSetState:
+			appendStringInfo(res_buf, "Project Set:\n");
+			break;
+
+		case T_AppendState:
+			appendStringInfo(res_buf, "Append:\n");
+			break;
+
+		case T_MergeAppendState:
+			appendStringInfo(res_buf, "Merge Append:\n");
+			break;
+
+		case T_RecursiveUnionState:
+			appendStringInfo(res_buf, "Recursive Union:\n");
+			break;
+
+		case T_BitmapAndState:
+			appendStringInfo(res_buf, "Bitmap And State:\n");
+			break;
+
+		case T_BitmapOrState:
+			appendStringInfo(res_buf, "Bitmap Or State:\n");
+			break;
+
+		case T_LimitState:
+			appendStringInfo(res_buf, "Limit:\n");
+			break;
+
+		case T_IncrementalSortState:
+			appendStringInfo(res_buf, "Incremental Sort:\n");
+			break;
+
+		case T_MaterialState:
+			//ExecReScanMaterial((MaterialState *) node);
+			break;
+
+		case T_GroupState:
+			//ExecReScanGroup((GroupState *) node);
+			break;
+
+		case T_SetOpState:
+			//ExecReScanSetOp((SetOpState *) node);
+			break;
+
+		case T_LockRowsState:
+			//ExecReScanLockRows((LockRowsState *) node);
+			break;
+
+        //---------------------------------------------------------        
+        
         default:
             appendStringInfo(res_buf, "Unknown:\n"); 
             break; 

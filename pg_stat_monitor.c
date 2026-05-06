@@ -911,10 +911,10 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     if (pgsm_collect_per_query_statistics && is_monitoring_target(queryDesc) && queryDesc->totaltime)
     {
 
-        /* We should use our mem context to prevent any memory leaks*/
-        //MemoryContext oldctx; 
+        /* We should use our per query mem context to prevent any memory leaks*/
+        MemoryContext oldctx; 
 		
-		//oldctx = MemoryContextSwitchTo();
+		oldctx = MemoryContextSwitchTo(get_per_query_local_mem_context());
 		shared_storage         = get_per_query_shared_storage();	
     	dsa                    = get_per_query_dsa_area();
         latch                  = get_per_query_latch();
@@ -975,7 +975,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		pfree(per_node_plan_info_str);
 		pfree(locks_info_str);
 
-		//MemoryContextSwitchTo(oldctx);
+		MemoryContextSwitchTo(oldctx);
 	}
 
 	if (prev_ExecutorEnd)
@@ -1576,7 +1576,7 @@ pgsm_create_per_query_entry(uint64_t execution_id,
     bool found_client_addr = false;
 
 	per_query_entry->execution_id                       = execution_id;
-    //per_query_entry->xid
+    //per_query_entry->xid                              = xid;
 
 	per_query_entry->query_text.query_pointer           = query;
 	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;

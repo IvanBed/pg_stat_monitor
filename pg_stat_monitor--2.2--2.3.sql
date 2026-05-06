@@ -227,8 +227,10 @@ CREATE UNLOGGED TABLE pg_stat_per_query
     dbid                oid,
     datname             text,
     client_ip           int8,
+    
 
     execution_id        bigint,
+    execution_time      timestamp,
     transaction_id      bigint, -- new field
     queryid             int8, 
     planid              int8,

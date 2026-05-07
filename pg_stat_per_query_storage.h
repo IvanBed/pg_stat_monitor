@@ -205,14 +205,14 @@ typedef struct Counters
 typedef struct pgsmPerQueryEntry
 {
 	uint64_t    execution_id;	   
-	//uint32_t    transaction_id;
+	uint32_t    transaction_id;
+    TimestampTz execution_time;	/* timestamp of entry allocation */
+    uint32      client_ip;
+
 	char		datname[NAMEDATALEN];	/* database name */
 	char		username[NAMEDATALEN];	/* user name */
 	Counters	counters;		/* the statistics for this query */
 	int			encoding;		/* query text encoding */
-	TimestampTz stats_since;	/* timestamp of entry allocation */
-	TimestampTz minmax_stats_since; /* timestamp of last min/max values reset */
-	slock_t		mutex;			/* protects the counters only */
 
     // add some information about plan, locks and so on
 
@@ -227,7 +227,13 @@ typedef struct pgsmPerQueryEntry
 		dsa_pointer plan_info_pos;	/* plan info text location within dsabuffer */
 		char	   *plan_info_pointer;
 	}  plan_info_text;
-	
+
+	union
+	{
+		dsa_pointer rel_info_pos;	/* realtion info text location within dsabuffer */
+		char	   *rel_info_pointer;
+	}  rel_info_text;
+    
 	union
 	{
 		dsa_pointer query_pos;	/* query location within query buffer */
@@ -249,10 +255,10 @@ typedef struct StorageRelOidInfo
 typedef struct pgsmPerQuerySharedStorage
 {
 	LWLock	          *lock;			/* protects list search/modification */
-	//slock_t		       mutex;			/* protects following fields only: */
 	void	          *raw_dsa_area;	/* DSA area pointer to store query texts for interproccess communication */
 	pgsmPerQueryEntry *store;
 
+    size_t             size;
 	size_t             store_capacity;
     uint8_t           *free_space_bitmap;
 	bool		       pgsm_oom;

@@ -230,7 +230,7 @@ CREATE UNLOGGED TABLE pg_stat_per_query
     
 
     execution_id        bigint,
-    execution_time      timestamp,
+    execution_time      timestamp, -- new field
     transaction_id      bigint, -- new field
     queryid             int8, 
     planid              int8,

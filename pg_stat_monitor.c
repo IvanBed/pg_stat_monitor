@@ -284,6 +284,7 @@ static void pgsm_lock_release(pgsmSharedState *pgsm);
 
 static void
 pgsm_create_per_query_entry(uint64_t execution_id,
+                  TimestampTz execution_time,
                   TransactionId xid,
 				  const char *query,
 				  CmdType cmd_type,
@@ -291,6 +292,7 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  int comments_len,
 				  char const *per_node_plan_info,
 				  char const *locks_info,
+				  char const *rel_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -307,7 +309,7 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 
 static void init_worker(BackgroundWorker *worker, long);
 static bool check_thresholds();
-static uint64_t generate_unique_execution_id(void);
+static uint64_t generate_unique_execution_id(TimestampTz execution_time);
 static bool is_monitoring_target(QueryDesc *queryDesc);
 
 /* pg_per_query_helper.c functions */
@@ -816,7 +818,8 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     char const                 *per_node_plan_info_str;
 	char const                 *locks_info_str;
     uint64_t                    execution_id;
-    TransactionId               xid;
+    TimestampTz                 execution_time;
+	TransactionId               xid;
 
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
@@ -921,10 +924,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 
         per_node_plan_info_str = generate_plan_info(queryDesc);
         locks_info_str         = generate_locks_info(GetLockStatusData());
-		execution_id           = generate_unique_execution_id();
-        xid                    = GetCurrentTransactionId();
+		//part for per rel info
+
+		execution_time         = GetCurrentTimestamp();
+        execution_id           = generate_unique_execution_id(execution_time);
         
-		/* think over how to rewrite this part correctly*/
+		xid                    = GetCurrentTransactionId();
+        
+		/* think about how to rewrite this part correctly to prevent double calcultion*/
 		sys_info.utime = 0;
 		sys_info.stime = 0;
 
@@ -937,13 +944,15 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		}
 
     	pgsm_create_per_query_entry(execution_id,	/* entry */
+		                            execution_time,
 		                            xid,
             						queryDesc->sourceText, /* query */
             						queryDesc->operation,
 									NULL, /* comments */
             						0,	/* comments length */
 									per_node_plan_info_str,
-									locks_info_str,									
+									locks_info_str,	
+									NULL,								
             						NULL, /* PlanInfo */
             						&sys_info,	/* SysInfo */
             						NULL, /* ErrorInfo */
@@ -1553,6 +1562,7 @@ pg_get_client_addr(bool *ok)
 
 static void
 pgsm_create_per_query_entry(uint64_t execution_id,
+                  TimestampTz execution_time,
                   TransactionId xid, 
 				  const char *query,
 				  CmdType cmd_type,
@@ -1560,6 +1570,7 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  int comments_len,
 				  char const *per_node_plan_info,
 				  char const *locks_info,
+				  char const *rel_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -1576,7 +1587,8 @@ pgsm_create_per_query_entry(uint64_t execution_id,
     bool found_client_addr = false;
 
 	per_query_entry->execution_id                       = execution_id;
-    //per_query_entry->xid                              = xid;
+    per_query_entry->execution_time                     = execution_time;
+	per_query_entry->transaction_id                     = xid;
 
 	per_query_entry->query_text.query_pointer           = query;
 	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;
@@ -1589,10 +1601,10 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 		_snprintf(per_query_entry->counters.info.application_name, app_name, app_name_len + 1, APPLICATIONNAME_LEN);
 
 
-	/*if (!pgsm_client_ip_is_valid())
+	if (!pgsm_client_ip_is_valid())
 		pgsm_client_ip = pg_get_client_addr(&found_client_addr);
      
-	per_query_entry->key.ip = pgsm_client_ip;*/
+	per_query_entry->client_ip = pgsm_client_ip;
 
 	if (sys_info)
 	{
@@ -4436,12 +4448,12 @@ get_rel_oid(char const *schema, char const *rel_name)
 }
 
 static uint64_t 
-generate_unique_execution_id(void)
+generate_unique_execution_id(TimestampTz execution_time)
 {
     uint64_t now_us;
     uint64_t seq_val;
 
-    now_us  = (uint64_t) GetCurrentTimestamp();  
+    now_us  = (uint64_t) execution_time;  
     seq_val = pg_atomic_fetch_add_u64(&seq, 1);
 
     return (now_us << 20) | (seq_val & 0xFFFFF);

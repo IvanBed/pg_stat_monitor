@@ -155,7 +155,7 @@ write_node_name(NodeTag tag, StringInfoData *res_buf, size_t level)
 			break;
 
 		case T_MaterialState:
-			//ExecReScanMaterial((MaterialState *) node);
+			appendStringInfo(res_buf, "Material node:\n");
 			break;
 
 		case T_GroupState:
@@ -167,7 +167,7 @@ write_node_name(NodeTag tag, StringInfoData *res_buf, size_t level)
 			break;
 
 		case T_LockRowsState:
-			//ExecReScanLockRows((LockRowsState *) node);
+			appendStringInfo(res_buf, "LockRows node:\n");
 			break;
 
         //---------------------------------------------------------        
@@ -239,8 +239,8 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
     int          pid;
     char const  *lockmode_name;
 
-    char const  *db_name;
-    char const  *rel_name;
+    char const  *db_name   = NULL;
+    char const  *rel_name  = NULL;
 
     uint32_t     page_blocknum;
     uint16_t     page_offset;
@@ -248,6 +248,11 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
     uint32_t     transaction_xid;
     
     if (!instance)
+    {
+        return;
+    }
+
+    if (!res_buf)
     {
         return;
     }
@@ -263,24 +268,34 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             db_name  = get_database_name(instance->locktag.locktag_field1);
             rel_name = get_rel_name(instance->locktag.locktag_field2);
             appendStringInfo(res_buf, "Realtion lock, type %s\n\tdb: %s, relation: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, pid, (uint64_t)lock_wait_activity);
-
-            pfree(db_name);
-            pfree(rel_name);
+            //elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
+            //elog(NOTICE, "db_name %s", db_name);
+            //elog(NOTICE, "rel_name %s", rel_name);
+            if (db_name)
+                pfree(db_name);
+            if (rel_name)
+                pfree(rel_name);
             break;
         case LOCKTAG_DATABASE_FROZEN_IDS:
             db_name  = get_database_name(instance->locktag.locktag_field1); 
             appendStringInfo(res_buf, "Database frozen lock, type %s\n\tdb: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, pid, (uint64_t)lock_wait_activity);
-            
-            pfree(db_name);
+            //elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
+            //elog(NOTICE, "db_name %s", db_name);
+            if (db_name)
+                pfree(db_name);
             break;
         case LOCKTAG_PAGE:
             db_name       = get_database_name(instance->locktag.locktag_field1);
             rel_name      = get_rel_name(instance->locktag.locktag_field2);
             page_blocknum = instance->locktag.locktag_field3;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %s, page block number: %d\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, pid, (uint64_t)lock_wait_activity);
-            
-            pfree(db_name);
-            pfree(rel_name);
+            //elog(NOTICE, "LOCKTAG_PAGE");
+            //elog(NOTICE, "db_name %s", db_name);
+            //elog(NOTICE, "rel_name %s", rel_name);            
+            if (db_name)
+                pfree(db_name);
+            if (rel_name)
+                pfree(rel_name);
             break;
         case LOCKTAG_TUPLE:
             db_name       = get_database_name(instance->locktag.locktag_field1);
@@ -288,9 +303,13 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             page_blocknum = instance->locktag.locktag_field3;
             page_offset   = instance->locktag.locktag_field4;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %sn\t page block number: %d, offset within page %d \n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, page_offset, pid, (uint64_t)lock_wait_activity);
-            
-            pfree(db_name);
-            pfree(rel_name);
+            //elog(NOTICE, "LOCKTAG_TUPLE");
+            //elog(NOTICE, "db_name %s", db_name);
+            //elog(NOTICE, "rel_name %s", rel_name);             
+            if (db_name)
+                pfree(db_name);
+            if (rel_name)
+                pfree(rel_name);
             break;
         case LOCKTAG_TRANSACTION:
             transaction_xid  = instance->locktag.locktag_field1; 

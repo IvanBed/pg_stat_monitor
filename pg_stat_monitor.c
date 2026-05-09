@@ -918,11 +918,15 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         MemoryContext oldctx; 
 		
 		oldctx = MemoryContextSwitchTo(get_per_query_local_mem_context());
+		
+		//elog(NOTICE, "Start per query collecting");
 		shared_storage         = get_per_query_shared_storage();	
     	dsa                    = get_per_query_dsa_area();
         latch                  = get_per_query_latch();
 
+        //elog(NOTICE, "generate_plan_info");
         per_node_plan_info_str = generate_plan_info(queryDesc);
+		//elog(NOTICE, "generate_locks_info");
         locks_info_str         = generate_locks_info(GetLockStatusData());
 		//part for per rel info
 
@@ -942,7 +946,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 			sys_info.utime = time_diff(rusage_end.ru_utime, rusage_start.ru_utime);
 			sys_info.stime = time_diff(rusage_end.ru_stime, rusage_start.ru_stime);
 		}
-
+        //elog(NOTICE, "pgsm_create_per_query_entry"); 
     	pgsm_create_per_query_entry(execution_id,	/* entry */
 		                            execution_time,
 		                            xid,
@@ -980,10 +984,12 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
             /*  if we can not add the entry into the storage we call the worker and go on to not stop the main proccess */ 
 			SetLatch(latch);
 		}
-
-		pfree(per_node_plan_info_str);
-		pfree(locks_info_str);
-
+        //elog(NOTICE, "pgsm_create_per_query_entry"); 
+		if (per_node_plan_info_str)
+		    pfree(per_node_plan_info_str);
+		if (locks_info_str)
+		    pfree(locks_info_str);
+        //elog(NOTICE, "End per query collecting");
 		MemoryContextSwitchTo(oldctx);
 	}
 

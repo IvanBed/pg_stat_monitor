@@ -164,6 +164,7 @@ init_storage_shmem_if_needed(void)
         char *p = (char *) shared_storage;
         
         shared_storage->store_capacity    = STORE_CAPACITY;
+		shared_storage->size              = 0;
         shared_storage->store             = (pgsmPerQueryEntry*) ShmemAlloc(sizeof(pgsmPerQueryEntry) * STORE_CAPACITY);
         shared_storage->free_space_bitmap = (uint8_t*) ShmemAlloc(sizeof(uint8_t) * STORE_CAPACITY);
         shared_storage->lock              = &(GetNamedLWLockTranche("shmem_storage_chunk"))->lock;

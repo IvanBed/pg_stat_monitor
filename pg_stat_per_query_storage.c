@@ -1,7 +1,7 @@
 #include "pg_stat_per_query_storage.h"
 
 PG_MODULE_MAGIC;
-
+// Depricated function, will be removed yet
 static int 
 find_pos(pgsmPerQuerySharedStorage *shared_storage)
 {
@@ -17,6 +17,20 @@ find_pos(pgsmPerQuerySharedStorage *shared_storage)
             break;
         }
     }
+    LWLockRelease(shared_storage->lock);
+    return res_pos;
+}
+
+static int 
+get_pos(pgsmPerQuerySharedStorage *shared_storage)
+{
+    int res_pos;
+    res_pos = STORAGE_FULL;
+    LWLockAcquire(shared_storage->lock, LW_SHARED);
+    if (shared_storage->size < shared_storage->store_capacity)
+        res_pos = shared_storage->size;
+    
+    elog(NOTICE, "size: %d", res_pos);
     LWLockRelease(shared_storage->lock);
     return res_pos;
 }
@@ -85,6 +99,7 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
 
     memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
     shared_storage->free_space_bitmap[pos] = ALLOCATED;
+    shared_storage->size++;
 
     LWLockRelease(shared_storage->lock);
 }
@@ -98,7 +113,8 @@ pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *ds
         return false;
 
     elog(NOTICE, "add_el NEW!");     
-    pos = find_pos(shared_storage);
+    pos = get_pos(shared_storage);
+
     elog(NOTICE, "pos %d", pos);
     if (pos != STORAGE_FULL)
     {
@@ -137,6 +153,8 @@ pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, i
             shared_storage->free_space_bitmap[i] = FREE;
         }
     }
+    shared_storage->size = 0;
+    //memset(shared_storage->store, 0, shared_storage->store_capacity * sizeof(pgsmPerQueryEntry));
 
     LWLockRelease(shared_storage->lock);
 }

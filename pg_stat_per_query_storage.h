@@ -233,7 +233,7 @@ typedef struct pgsmPerQueryEntry
 		dsa_pointer rel_info_pos;	/* realtion info text location within dsabuffer */
 		char	   *rel_info_pointer;
 	}  rel_info_text;
-    
+
 	union
 	{
 		dsa_pointer query_pos;	/* query location within query buffer */

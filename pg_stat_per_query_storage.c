@@ -56,7 +56,8 @@ dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
         return false;
     }
 }
-
+/*		char	   *rel_info_pointer;
+	}  rel_info_text; */
 static void 
 add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
 {
@@ -65,12 +66,14 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     char       *query_text;
     /*plan info vars*/
     size_t      plan_len;
-    char       *plan_text;      
+    char       *plan_text;
+    /*plan info vars*/
+    size_t      rels_len;
+    char       *rels_text;        
     /*locks info vars*/
     size_t      locks_len;
     char       *locks_text;     
 
-    //elog(NOTICE, "add_el_internal!");
     if (!entry)
     {
         elog(NOTICE, "enrty is null!");
@@ -78,12 +81,19 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     }
 
     query_text = entry->query_text.query_pointer;
+    if (!query_text) query_text = "";
     query_len  = strlen(query_text); 
 
     plan_text  = entry->plan_info_text.plan_info_pointer;
+    if (!plan_text) plan_text = "";
     plan_len   = strlen(plan_text); 
 
+    rels_text  = entry->rel_info_text.rel_info_pointer;
+    if (!rels_text) rels_text = "";
+    rels_len   = strlen(rels_text); 
+
     locks_text = entry->locks_info_text.locks_info_pointer;
+    if (!locks_text) locks_text = "";
     locks_len  = strlen(locks_text); 
 
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
@@ -93,7 +103,10 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
 
     if (!dsa_store(dsa, plan_text, plan_len, &(entry->plan_info_text.plan_info_pos)))
         elog(NOTICE, "Could not add plan text into the DSA");
-    
+
+    if (!dsa_store(dsa, rels_text, rels_len, &(entry->rel_info_text.rel_info_pos)))
+        elog(NOTICE, "Could not add rels text into the DSA");
+
     if (!dsa_store(dsa, locks_text, locks_len, &(entry->locks_info_text.locks_info_pos)))
         elog(NOTICE, "Could not add locks info text into the DSA");
 
@@ -145,7 +158,11 @@ pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, i
             dsa_query_pointer = (shared_storage->store + i)->plan_info_text.plan_info_pos;
             if(DsaPointerIsValid(dsa))
                 dsa_free(dsa, dsa_query_pointer);
-            
+
+            dsa_query_pointer = (shared_storage->store + i)->rel_info_text.rel_info_pos;
+            if(DsaPointerIsValid(dsa))
+                dsa_free(dsa, dsa_query_pointer);
+
             dsa_query_pointer = (shared_storage->store + i)->locks_info_text.locks_info_pos;
             if(DsaPointerIsValid(dsa))
                 dsa_free(dsa, dsa_query_pointer);

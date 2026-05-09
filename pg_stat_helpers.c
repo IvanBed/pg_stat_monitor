@@ -159,18 +159,16 @@ write_node_name(NodeTag tag, StringInfoData *res_buf, size_t level)
 			break;
 
 		case T_GroupState:
-			//ExecReScanGroup((GroupState *) node);
+			appendStringInfo(res_buf, "Group node:\n");
 			break;
 
 		case T_SetOpState:
-			//ExecReScanSetOp((SetOpState *) node);
+			appendStringInfo(res_buf, "SetOp node:\n");
 			break;
 
 		case T_LockRowsState:
 			appendStringInfo(res_buf, "LockRows node:\n");
-			break;
-
-        //---------------------------------------------------------        
+			break;   
         
         default:
             appendStringInfo(res_buf, "Unknown:\n"); 
@@ -221,14 +219,12 @@ PGDLLEXPORT char const *
 generate_plan_info(QueryDesc const *queryDesc)
 {
     StringInfoData buf;
-
-    if (!queryDesc)
-    {
-        elog(NOTICE, "queryDesc is NULL");
-        return NULL;
-    }
     initStringInfo(&buf);
-    dfs_plan_state(queryDesc->planstate, &buf, 0);
+    if (queryDesc)
+        dfs_plan_state(queryDesc->planstate, &buf, 0);
+    else 
+        elog(NOTICE, "queryDesc is NULL");
+    
     return buf.data;
 }
 
@@ -268,20 +264,20 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             db_name  = get_database_name(instance->locktag.locktag_field1);
             rel_name = get_rel_name(instance->locktag.locktag_field2);
             appendStringInfo(res_buf, "Realtion lock, type %s\n\tdb: %s, relation: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, pid, (uint64_t)lock_wait_activity);
-            //elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
-            //elog(NOTICE, "db_name %s", db_name);
-            //elog(NOTICE, "rel_name %s", rel_name);
-            if (db_name)
+            elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
+            elog(NOTICE, "db_name %s", db_name);
+            elog(NOTICE, "rel_name %s", rel_name);
+            //if (db_name)
                 pfree(db_name);
-            if (rel_name)
-                pfree(rel_name);
+            /*if (rel_name)
+                pfree(rel_name);*/
             break;
         case LOCKTAG_DATABASE_FROZEN_IDS:
             db_name  = get_database_name(instance->locktag.locktag_field1); 
             appendStringInfo(res_buf, "Database frozen lock, type %s\n\tdb: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, pid, (uint64_t)lock_wait_activity);
-            //elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
-            //elog(NOTICE, "db_name %s", db_name);
-            if (db_name)
+            elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
+            elog(NOTICE, "db_name %s", db_name);
+            //if (db_name)
                 pfree(db_name);
             break;
         case LOCKTAG_PAGE:
@@ -289,13 +285,13 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             rel_name      = get_rel_name(instance->locktag.locktag_field2);
             page_blocknum = instance->locktag.locktag_field3;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %s, page block number: %d\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, pid, (uint64_t)lock_wait_activity);
-            //elog(NOTICE, "LOCKTAG_PAGE");
-            //elog(NOTICE, "db_name %s", db_name);
-            //elog(NOTICE, "rel_name %s", rel_name);            
-            if (db_name)
+            elog(NOTICE, "LOCKTAG_PAGE");
+            elog(NOTICE, "db_name %s", db_name);
+            elog(NOTICE, "rel_name %s", rel_name);            
+            //if (db_name)
                 pfree(db_name);
-            if (rel_name)
-                pfree(rel_name);
+            /*if (rel_name)
+                pfree(rel_name);*/
             break;
         case LOCKTAG_TUPLE:
             db_name       = get_database_name(instance->locktag.locktag_field1);
@@ -306,10 +302,10 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             //elog(NOTICE, "LOCKTAG_TUPLE");
             //elog(NOTICE, "db_name %s", db_name);
             //elog(NOTICE, "rel_name %s", rel_name);             
-            if (db_name)
+            //if (db_name)
                 pfree(db_name);
-            if (rel_name)
-                pfree(rel_name);
+            /*if (rel_name)
+                pfree(rel_name);*/
             break;
         case LOCKTAG_TRANSACTION:
             transaction_xid  = instance->locktag.locktag_field1; 
@@ -317,37 +313,23 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             break;
         case LOCKTAG_VIRTUALTRANSACTION:
 
-
-
             break;
         case LOCKTAG_SPECULATIVE_TOKEN:
-
-
 
             break;
         case LOCKTAG_APPLY_TRANSACTION:
 
-
-
             break;
         case LOCKTAG_OBJECT:
-
-
 
             break;
         case LOCKTAG_USERLOCK:
 
-
-
             break;        
         case LOCKTAG_ADVISORY:
 
-
-
             break;        
         default:            /* treat unknown locktags like OBJECT */
-
-
 
             break;
     }
@@ -362,6 +344,17 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
     LOCKMODE          mode;
     TimestampTz       end_timestamp; 
     double            lock_wait_activity;
+
+    if (!locks_data)
+    {
+        return;
+    }
+
+    if (!buf)
+    {
+        return;
+    }
+
 
     granted = false;
     mode    = 0;
@@ -404,18 +397,92 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
     }
 }
 
-//to think about returnig the StringInfoData not the cstring
 PGDLLEXPORT char const * 
 generate_locks_info(LockData const *locks_data)
 {
-    StringInfoData buf;    
-    if (!locks_data)
-    {
-        elog(NOTICE, "locks_data is NULL");
-        return NULL;
-    }
-
+    StringInfoData buf;
     initStringInfo(&buf);
-    write_locks_info(locks_data, &buf);
+
+    if (locks_data)
+        write_locks_info(locks_data, &buf);
+    else 
+        elog(NOTICE, "locks_data is NULL");
+    
     return buf.data;
 }
+
+static void 
+write_rel_info(Relation rel, StringInfoData *buf)
+{
+    if (!rel)
+    {
+        return;
+    }      
+    
+    elog(NOTICE, "write_rel_info ");
+    elog(NOTICE, "rel id %d", rel->rd_id);
+    char const *rel_name  = NULL;
+    
+    rel_name = get_rel_name(rel->rd_id);
+    appendStringInfo(buf, "Relation: %s\n", rel_name); 
+    if (rel->pgstat_info)
+    { 
+        appendStringInfo(buf, "    Tuples moved to a new page: %ld\n", rel->pgstat_info->counts.tuples_newpage_updated);
+        appendStringInfo(buf, "    Tuples updated: %ld\n", rel->pgstat_info->counts.tuples_updated);
+        appendStringInfo(buf, "    Tuples hot updated: %ld\n", rel->pgstat_info->counts.tuples_hot_updated);
+    }
+    else 
+    {
+        appendStringInfo(buf, "Relation info structure is NULL\n");
+    }
+
+    //if (rel_name)
+    //    free(rel_name);
+}
+
+static void 
+write_rels_info(QueryDesc *queryDesc, StringInfoData *buf)
+{
+    EState   *query_state;
+    Relation *rels_arr;
+    if (!queryDesc)
+    {
+        return;
+    }   
+    
+    query_state = queryDesc->estate;
+    if (!query_state)
+    {
+        return;
+    }
+
+    rels_arr = query_state->es_relations;
+    if (!rels_arr)
+    {
+        return;
+    }
+
+    elog(NOTICE, "write_rels_info");
+
+    for (size_t rel_idx = 0; rel_idx < query_state->es_range_table_size; rel_idx++)
+    {
+        Relation cur_rel = rels_arr[rel_idx];
+        if (cur_rel)
+            write_rel_info(cur_rel, buf);
+    }
+}
+
+PGDLLEXPORT char const * 
+generate_rels_info(QueryDesc *queryDesc)
+{
+    StringInfoData buf;
+    initStringInfo(&buf);
+    elog(NOTICE, "generate_rels_info");
+    if (queryDesc)
+        write_rels_info(queryDesc, &buf);
+    else
+        elog(NOTICE, "queryDesc is NULL");
+    
+    return buf.data;
+}
+

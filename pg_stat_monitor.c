@@ -291,8 +291,8 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  char *comments,
 				  int comments_len,
 				  char const *per_node_plan_info,
+				  char const *rels_info,
 				  char const *locks_info,
-				  char const *rel_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -315,6 +315,7 @@ static bool is_monitoring_target(QueryDesc *queryDesc);
 /* pg_per_query_helper.c functions */
 char const *generate_plan_info(QueryDesc const *queryDesc);
 char const *generate_locks_info(LockData const *locks_data);
+char const *generate_rels_info(QueryDesc *queryDesc);
 
 static Oid get_rel_oid(const char *schema, const char *table);
 
@@ -816,10 +817,13 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	Latch                      *latch;
     pgsmPerQueryEntry           per_query_entry;
     char const                 *per_node_plan_info_str;
-	char const                 *locks_info_str;
+	char const                 *rels_info_str = NULL;
+  	char const                 *locks_info_str;
     uint64_t                    execution_id;
     TimestampTz                 execution_time;
 	TransactionId               xid;
+    char		                comments[COMMENTS_LEN] = {0}; 
+    int                         comments_len;
 
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
@@ -919,22 +923,26 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 		
 		oldctx = MemoryContextSwitchTo(get_per_query_local_mem_context());
 		
-		//elog(NOTICE, "Start per query collecting");
+		elog(NOTICE, "Start per query collecting");
 		shared_storage         = get_per_query_shared_storage();	
     	dsa                    = get_per_query_dsa_area();
         latch                  = get_per_query_latch();
 
-        //elog(NOTICE, "generate_plan_info");
+        elog(NOTICE, "generate_plan_info");
         per_node_plan_info_str = generate_plan_info(queryDesc);
-		//elog(NOTICE, "generate_locks_info");
+        rels_info_str          = generate_rels_info(queryDesc);
         locks_info_str         = generate_locks_info(GetLockStatusData());
-		//part for per rel info
+
+        elog(NOTICE, "rels_info_str %s", rels_info_str);
 
 		execution_time         = GetCurrentTimestamp();
         execution_id           = generate_unique_execution_id(execution_time);
         
 		xid                    = GetCurrentTransactionId();
         
+        extract_query_comments(queryDesc->sourceText, comments, sizeof(comments));
+	    comments_len = strlen(comments);
+
 		/* think about how to rewrite this part correctly to prevent double calcultion*/
 		sys_info.utime = 0;
 		sys_info.stime = 0;
@@ -946,17 +954,17 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 			sys_info.utime = time_diff(rusage_end.ru_utime, rusage_start.ru_utime);
 			sys_info.stime = time_diff(rusage_end.ru_stime, rusage_start.ru_stime);
 		}
-        //elog(NOTICE, "pgsm_create_per_query_entry"); 
+ 
     	pgsm_create_per_query_entry(execution_id,	/* entry */
 		                            execution_time,
 		                            xid,
             						queryDesc->sourceText, /* query */
             						queryDesc->operation,
-									NULL, /* comments */
-            						0,	/* comments length */
+									comments, /* comments */
+            						comments_len,	/* comments length */
 									per_node_plan_info_str,
-									locks_info_str,	
-									NULL,								
+									rels_info_str,
+									locks_info_str,								
             						NULL, /* PlanInfo */
             						&sys_info,	/* SysInfo */
             						NULL, /* ErrorInfo */
@@ -984,12 +992,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
             /*  if we can not add the entry into the storage we call the worker and go on to not stop the main proccess */ 
 			SetLatch(latch);
 		}
-        //elog(NOTICE, "pgsm_create_per_query_entry"); 
+
 		if (per_node_plan_info_str)
 		    pfree(per_node_plan_info_str);
+		if (rels_info_str)
+		    pfree(rels_info_str);
 		if (locks_info_str)
 		    pfree(locks_info_str);
-        //elog(NOTICE, "End per query collecting");
+
 		MemoryContextSwitchTo(oldctx);
 	}
 
@@ -1575,8 +1585,8 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 				  char *comments,
 				  int comments_len,
 				  char const *per_node_plan_info,
+				  char const *rels_info,
 				  char const *locks_info,
-				  char const *rel_info,
 				  PlanInfo *plan_info,
 				  SysInfo *sys_info,
 				  ErrorInfo *error_info,
@@ -1598,14 +1608,17 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 
 	per_query_entry->query_text.query_pointer           = query;
 	per_query_entry->plan_info_text.plan_info_pointer   = per_node_plan_info;
+	per_query_entry->rel_info_text.rel_info_pointer     = rels_info;
 	per_query_entry->locks_info_text.locks_info_pointer = locks_info;
 
     per_query_entry->counters.time.total_time           = exec_total_time;
-    per_query_entry->counters.info.cmd_type             = cmd_type;
+    per_query_entry->counters.info.cmd_type             = cmd_type;                  
+
+	if (pgsm_extract_comments && !per_query_entry->counters.info.comments[0] && comments_len > 0)
+		_snprintf(per_query_entry->counters.info.comments, comments, comments_len + 1, COMMENTS_LEN);
 
 	if (pgsm_track_application_names && app_name_len > 0)
 		_snprintf(per_query_entry->counters.info.application_name, app_name, app_name_len + 1, APPLICATIONNAME_LEN);
-
 
 	if (!pgsm_client_ip_is_valid())
 		pgsm_client_ip = pg_get_client_addr(&found_client_addr);

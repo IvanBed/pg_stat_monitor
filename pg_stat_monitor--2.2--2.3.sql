@@ -283,7 +283,8 @@ CREATE UNLOGGED TABLE pg_stat_per_query
     total_plan_time     float8,
 
     per_node_plan_info  TEXT,   --new field, chosen plan and info
-    lock_info           TEXT,   --new field, lock and info
+    lock_info           TEXT,   --new field, locks info
+    rels_info           TEXT,   --new field, relations info
 
     parallel_workers_to_launch  int, 
     parallel_workers_launched   int

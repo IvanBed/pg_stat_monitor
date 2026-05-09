@@ -267,7 +267,7 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
             elog(NOTICE, "db_name %s", db_name);
             elog(NOTICE, "rel_name %s", rel_name);
-            //if (db_name)
+            if (db_name)
                 pfree(db_name);
             /*if (rel_name)
                 pfree(rel_name);*/
@@ -277,7 +277,7 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             appendStringInfo(res_buf, "Database frozen lock, type %s\n\tdb: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, pid, (uint64_t)lock_wait_activity);
             elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
             elog(NOTICE, "db_name %s", db_name);
-            //if (db_name)
+            if (db_name)
                 pfree(db_name);
             break;
         case LOCKTAG_PAGE:
@@ -288,7 +288,7 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             elog(NOTICE, "LOCKTAG_PAGE");
             elog(NOTICE, "db_name %s", db_name);
             elog(NOTICE, "rel_name %s", rel_name);            
-            //if (db_name)
+            if (db_name)
                 pfree(db_name);
             /*if (rel_name)
                 pfree(rel_name);*/
@@ -302,7 +302,7 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             //elog(NOTICE, "LOCKTAG_TUPLE");
             //elog(NOTICE, "db_name %s", db_name);
             //elog(NOTICE, "rel_name %s", rel_name);             
-            //if (db_name)
+            if (db_name)
                 pfree(db_name);
             /*if (rel_name)
                 pfree(rel_name);*/

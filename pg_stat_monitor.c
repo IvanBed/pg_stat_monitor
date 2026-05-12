@@ -824,6 +824,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
 	TransactionId               xid;
     char		                comments[COMMENTS_LEN] = {0}; 
     int                         comments_len;
+    LockData * locks_data 
 
 	/* Extract the plan information in case of SELECT statement */
 	if (queryDesc->operation == CMD_SELECT && pgsm_enable_query_plan)
@@ -931,7 +932,10 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         elog(NOTICE, "generate_plan_info");
         per_node_plan_info_str = generate_plan_info(queryDesc);
         rels_info_str          = generate_rels_info(queryDesc);
-        locks_info_str         = generate_locks_info(GetLockStatusData());
+        
+		
+        locks_data             = GetLockStatusData();
+		locks_info_str         = generate_locks_info(locks_data);
 
         elog(NOTICE, "rels_info_str %s", rels_info_str);
 

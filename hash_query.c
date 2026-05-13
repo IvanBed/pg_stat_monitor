@@ -202,12 +202,12 @@ pgsm_attach_shmem_per_query_storage(void)
 
 	if (pgsm_per_query_local_storage.dsa)
 		return;
-    elog(NOTICE, "attach_shmem 1");  
+    //elog(NOTICE, "attach_shmem 1");  
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
 	pgsm_per_query_local_storage.dsa = dsa_attach_in_place(pgsm_per_query_local_storage.shared_storage->raw_dsa_area, NULL);
 
-	elog(NOTICE, "attach_shmem 2"); 
+	//elog(NOTICE, "attach_shmem 2"); 
 	dsa_pin_mapping(pgsm_per_query_local_storage.dsa);
     
 

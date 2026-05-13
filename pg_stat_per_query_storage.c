@@ -1,38 +1,19 @@
 #include "pg_stat_per_query_storage.h"
 
 PG_MODULE_MAGIC;
-// Depricated function, will be removed yet
-static int 
-find_pos(pgsmPerQuerySharedStorage *shared_storage)
-{
-    int res_pos;
-    
-    res_pos = STORAGE_FULL;
-    LWLockAcquire(shared_storage->lock, LW_SHARED);
-    for (size_t i = 0; i < shared_storage->store_capacity; i++)
-    {
-        if (shared_storage->free_space_bitmap[i] == FREE)
-        {
-            res_pos = (int) i;
-            break;
-        }
-    }
-    LWLockRelease(shared_storage->lock);
-    return res_pos;
-}
 
 static int 
-get_pos(pgsmPerQuerySharedStorage *shared_storage)
+get_offset(pgsmPerQuerySharedStorage *shared_storage)
 {
-    int res_pos;
-    res_pos = STORAGE_FULL;
+    int offset;
+    offset = STORAGE_FULL;
     LWLockAcquire(shared_storage->lock, LW_SHARED);
     if (shared_storage->size < shared_storage->store_capacity)
-        res_pos = shared_storage->size;
+        offset = shared_storage->size;
     
-    elog(NOTICE, "size: %d", res_pos);
+    //elog(NOTICE, "size: %d", offset);
     LWLockRelease(shared_storage->lock);
-    return res_pos;
+    return offset;
 }
 
 static bool 
@@ -59,7 +40,7 @@ dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
 /*		char	   *rel_info_pointer;
 	}  rel_info_text; */
 static void 
-add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t pos)
+add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t offset)
 {
     /*query vars*/   
     size_t      query_len;
@@ -110,28 +91,27 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
     if (!dsa_store(dsa, locks_text, locks_len, &(entry->locks_info_text.locks_info_pos)))
         elog(NOTICE, "Could not add locks info text into the DSA");
 
-    memcpy(shared_storage->store + pos, entry, sizeof(pgsmPerQueryEntry));       
-    shared_storage->free_space_bitmap[pos] = ALLOCATED;
+    memcpy(shared_storage->store + offset, entry, sizeof(pgsmPerQueryEntry));       
+    shared_storage->free_space_bitmap[offset] = ALLOCATED;
     shared_storage->size++;
-
     LWLockRelease(shared_storage->lock);
 }
 
 PGDLLEXPORT bool 
 pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry)
 {
-    int pos;
+    int offset;
 
     if (!entry)
         return false;
 
-    elog(NOTICE, "add_el NEW!");     
-    pos = get_pos(shared_storage);
+    //elog(NOTICE, "add_el NEW!");     
+    offset = get_offset(shared_storage);
 
-    elog(NOTICE, "pos %d", pos);
-    if (pos != STORAGE_FULL)
+    //elog(NOTICE, "offset %d", offset);
+    if (offset != STORAGE_FULL)
     {
-        add_el_internal(shared_storage, dsa, entry, pos);
+        add_el_internal(shared_storage, dsa, entry, offset);
         return true;
     }
     else

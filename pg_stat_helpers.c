@@ -264,9 +264,9 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             db_name  = get_database_name(instance->locktag.locktag_field1);
             rel_name = get_rel_name(instance->locktag.locktag_field2);
             appendStringInfo(res_buf, "Realtion lock, type %s\n\tdb: %s, relation: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, pid, (uint64_t)lock_wait_activity);
-            elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
+            /*elog(NOTICE, "LOCKTAG_RELATION_EXTEND and LOCKTAG_RELATION");
             elog(NOTICE, "db_name %s", db_name);
-            elog(NOTICE, "rel_name %s", rel_name);
+            elog(NOTICE, "rel_name %s", rel_name);*/
             if (db_name)
                 pfree(db_name);
             /*if (rel_name)
@@ -275,8 +275,8 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
         case LOCKTAG_DATABASE_FROZEN_IDS:
             db_name  = get_database_name(instance->locktag.locktag_field1); 
             appendStringInfo(res_buf, "Database frozen lock, type %s\n\tdb: %s\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, pid, (uint64_t)lock_wait_activity);
-            elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
-            elog(NOTICE, "db_name %s", db_name);
+            /*elog(NOTICE, "LOCKTAG_DATABASE_FROZEN_IDS");
+            elog(NOTICE, "db_name %s", db_name);*/
             if (db_name)
                 pfree(db_name);
             break;
@@ -285,9 +285,9 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             rel_name      = get_rel_name(instance->locktag.locktag_field2);
             page_blocknum = instance->locktag.locktag_field3;
             appendStringInfo(res_buf, "Page lock, type %s\n\tdb: %s, relation: %s, page block number: %d\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, db_name, rel_name, page_blocknum, pid, (uint64_t)lock_wait_activity);
-            elog(NOTICE, "LOCKTAG_PAGE");
+            /*elog(NOTICE, "LOCKTAG_PAGE");
             elog(NOTICE, "db_name %s", db_name);
-            elog(NOTICE, "rel_name %s", rel_name);            
+            elog(NOTICE, "rel_name %s", rel_name);*/            
             if (db_name)
                 pfree(db_name);
             /*if (rel_name)
@@ -312,28 +312,20 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
             appendStringInfo(res_buf, "Transaction lock, type %s\n\txid: %d\n\tholder: %d, wait time activity: %ld s\n", lockmode_name, transaction_xid, pid, (uint64_t)lock_wait_activity);
             break;
         case LOCKTAG_VIRTUALTRANSACTION:
-
             break;
         case LOCKTAG_SPECULATIVE_TOKEN:
-
             break;
         case LOCKTAG_APPLY_TRANSACTION:
-
             break;
         case LOCKTAG_OBJECT:
-
             break;
         case LOCKTAG_USERLOCK:
-
             break;        
         case LOCKTAG_ADVISORY:
-
             break;        
         default:            /* treat unknown locktags like OBJECT */
-
             break;
     }
-
 }
 
 static void 
@@ -347,11 +339,13 @@ write_locks_info(LockData const *locks_data, StringInfoData *buf)
 
     if (!locks_data)
     {
+        elog(NOTICE, "locks_data is NULL");
         return;
     }
 
     if (!buf)
     {
+        elog(NOTICE, "StringInfoData buffer is NULL");
         return;
     }
 
@@ -419,8 +413,8 @@ write_rel_info(Relation rel, StringInfoData *buf)
         return;
     }      
     
-    elog(NOTICE, "write_rel_info ");
-    elog(NOTICE, "rel id %d", rel->rd_id);
+    /*elog(NOTICE, "write_rel_info ");
+    elog(NOTICE, "rel id %d", rel->rd_id);*/
     char const *rel_name  = NULL;
     
     rel_name = get_rel_name(rel->rd_id);
@@ -462,7 +456,7 @@ write_rels_info(QueryDesc *queryDesc, StringInfoData *buf)
         return;
     }
 
-    elog(NOTICE, "write_rels_info");
+    //elog(NOTICE, "write_rels_info");
 
     for (size_t rel_idx = 0; rel_idx < query_state->es_range_table_size; rel_idx++)
     {
@@ -477,7 +471,7 @@ generate_rels_info(QueryDesc *queryDesc)
 {
     StringInfoData buf;
     initStringInfo(&buf);
-    elog(NOTICE, "generate_rels_info");
+    //elog(NOTICE, "generate_rels_info");
     if (queryDesc)
         write_rels_info(queryDesc, &buf);
     else

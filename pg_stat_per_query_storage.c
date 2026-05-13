@@ -155,18 +155,3 @@ pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, i
 
     LWLockRelease(shared_storage->lock);
 }
-/*
-static void
-pgsm_lock_aquire(pgsmPerQuerySharedStorage *shared_storage, LWLockMode mode)
-{
-	LWLockAcquire(shared_storage->lock, mode);
-	//disable_error_capture = true;
-}
-
-static void
-pgsm_lock_release(pgsmPerQuerySharedStorage *shared_storage)
-{
-	//disable_error_capture = false;
-	LWLockRelease(shared_storage->lock);
-}
-*/

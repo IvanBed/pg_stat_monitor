@@ -4467,7 +4467,8 @@ is_threshold_exceeded(QueryDesc const *queryDesc)
 {
     double  msec;
     size_t query_len;
-    
+    bool result = false;
+
     if (!queryDesc)
     {
         elog(NOTICE, "queryDesc is NULL");
@@ -4475,20 +4476,22 @@ is_threshold_exceeded(QueryDesc const *queryDesc)
     }
     
     elog(NOTICE, "is_threshold_exceeded");
-
-
     msec = queryDesc->totaltime->total * 1000;
 
     elog(NOTICE, "msec %f", msec);
 
     if (msec < pgsm_log_min_duration)
-        return false;
+        result |= false;
+    else
+	    result |= true;
 
     query_len = strlen(queryDesc->sourceText);
     if (query_len < pgsm_log_parameter_max_length)
-        return false;    
-    
-    return validate_table_source(queryDesc);
+        result |= false;    
+    else
+	    result |= true;
+
+    return result & validate_table_source(queryDesc);
 }
 
 static Oid 

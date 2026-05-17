@@ -818,8 +818,8 @@ pgsm_explain(QueryDesc *queryDesc)
 static void
 pgsm_ExecutorEnd(QueryDesc *queryDesc)
 {
-    int64        queryId = queryDesc->plannedstmt->queryId;
-    SysInfo        sys_info;
+    int64       queryId = queryDesc->plannedstmt->queryId;
+    SysInfo     sys_info;
     PlanInfo    plan_info;
     PlanInfo   *plan_ptr = NULL;
     pgsmEntry  *entry = NULL;
@@ -4530,6 +4530,21 @@ generate_unique_execution_id(TimestampTz execution_time)
     seq_val = pg_atomic_fetch_add_u64(&seq, 1);
 
     return (now_us << 20) | (seq_val & 0xFFFFF);
+}
+
+static void 
+init_sys_info(SysInfo *sys_info)
+{
+    sys_info->utime = 0;
+    sys_info->stime = 0;
+
+    if (getrusage(RUSAGE_SELF, &rusage_end) != 0)
+        elog(DEBUG1, "[pg_stat_monitor] pgsm_ExecutorEnd: Failed to execute getrusage.");
+    else
+    {
+        sys_info->utime = time_diff(rusage_end.ru_utime, rusage_start.ru_utime);
+        sys_info->stime = time_diff(rusage_end.ru_stime, rusage_start.ru_stime);
+    }
 }
 
 /* test funcs*/

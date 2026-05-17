@@ -169,13 +169,13 @@ worker_main(Datum main_arg)
     /*add error handling*/
     if (!get_shmem_latch())
     {
-        //elog(FATAL, "Please use shared_preload_libraries");
+        elog(NOTICE, "Unable to find latch structure in shared memory.");
         return;
     }
 
     if (!get_shmem_storage())
     {
-        //elog(FATAL, "Please use shared_preload_libraries");
+        elog(NOTICE, "Unable to find shared storage in shared memory.");
         return;
     }
 
@@ -202,6 +202,7 @@ worker_main(Datum main_arg)
             ProcessConfigFile(PGC_SIGHUP);
         }
         write_data_to_rel();
+        //pgsm_cleanup_storage(shared_storage, dsa);
     }
 }
 

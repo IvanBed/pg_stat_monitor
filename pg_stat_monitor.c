@@ -4448,6 +4448,7 @@ validate_table_source(QueryDesc /*const*/ *queryDesc)
 
     if (!queryDesc)
     {
+        elog(NOTICE, "queryDesc is NULL");
         return false;
     }
 

@@ -160,7 +160,8 @@ worker_main(Datum main_arg)
     // using args i can pass a db name
     char *db_name;
     long  timeout;
-
+    // to windows should be DatumGetInt32
+    // timeout = DatumGetInt64(main_arg)
     // temp init for test
     db_name  = "postgres";
     timeout  = 10000;

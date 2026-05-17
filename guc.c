@@ -44,6 +44,11 @@ int         pgsm_log_min_duration;
 int         pgsm_log_parameter_max_length;
 int         pgsm_worker_timeout;
 
+int         pgsm_per_query_storage_capacity;
+int         pgsm_per_query_dsa_size;
+int         pgsm_spil_coefficient
+
+
 /* Check hooks to ensure histogram_min < histogram_max */
 static bool check_histogram_min(double *newval, void **extra, GucSource source);
 static bool check_histogram_max(double *newval, void **extra, GucSource source);
@@ -307,6 +312,49 @@ init_guc(void)
 							 NULL	/* show_hook */
 		);
 
+	DefineCustomIntVariable("pg_stat_monitor.pgsm_per_query_storage_capacity", /* name */
+							"Sets the capacity of the per query storage.",	/* short_desc */
+							NULL,	/* long_desc */
+							&pgsm_per_query_storage_capacity,	/* value address */
+							1000, /* boot value */
+							1,	/* min value */
+							10000,	/* max value */
+							PGC_POSTMASTER, /* context */
+							0,	/* flags */
+							NULL,	/* check_hook */
+							NULL,	/* assign_hook */
+							NULL	/* show_hook */
+		);
+
+	DefineCustomIntVariable("pg_stat_monitor.pgsm_per_query_dsa_size," /* name */
+							"Sets the maximum size of DSA (MB) used for strings",	/* short_desc */
+							NULL,	/* long_desc */
+							&pgsm_per_query_dsa_size,	/* value address */
+							2, /* boot value */
+							1,	/* min value */
+							100,	/* max value */
+							PGC_POSTMASTER, /* context */
+							GUC_UNIT_MB,	/* flags */
+							NULL,	/* check_hook */
+							NULL,	/* assign_hook */
+							NULL	/* show_hook */
+		);
+
+	DefineCustomIntVariable("pg_stat_monitor.spil_coefficient", /* name */
+ 							"Sets the spil_coefficient",	/* short_desc */
+							NULL,	/* long_desc */
+							&pgsm_spil_coefficient,	/* value address */
+							70, /* boot value */
+							50,	/* min value */
+							90,	/* max value */
+							PGC_SUSET, /* context */
+							0,	/* flags */
+							NULL,	/* check_hook */
+							NULL,	/* assign_hook */
+							NULL	/* show_hook */
+		);
+
+
     DefineCustomIntVariable("pg_stat_monitor.pgsm_log_min_duration",
                              "Sets the minimum execution time above which query info will be stored.",
                              "-1 disables logging queries. 0 means log all queries.",
@@ -333,7 +381,7 @@ init_guc(void)
                              NULL
 		);
 	
-
+    // check the worker_spi
 	DefineCustomIntVariable("pg_stat_monitor.pgsm_worker_timeout", /* name */
 							"Sets the work timeout og the async background worket that write the statistics in thr realtion",	/* short_desc */
 							NULL,	/* long_desc */
@@ -342,7 +390,7 @@ init_guc(void)
 							10000,	/* min value */
 							10000000,	/* max value */
 							PGC_SUSET, /* context */
-							GUC_UNIT_MB,	/* flags */
+							GUC_UNIT_TIME,	/* flags */
 							NULL,	/* check_hook */
 							NULL,	/* assign_hook */
 							NULL	/* show_hook */

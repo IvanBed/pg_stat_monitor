@@ -37,8 +37,7 @@ dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
         return false;
     }
 }
-/*		char	   *rel_info_pointer;
-	}  rel_info_text; */
+
 static void 
 add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPerQueryEntry *entry, size_t offset)
 {

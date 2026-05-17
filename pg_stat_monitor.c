@@ -640,6 +640,9 @@ pgsm_post_parse_analyze(ParseState *pstate, Query *query)
 static void
 pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+    pgsmPerQuerySharedStorage shared_storage;
+    Latch                     latch;
+
     if (getrusage(RUSAGE_SELF, &rusage_start) != 0)
         elog(DEBUG1, "[pg_stat_monitor] pgsm_ExecutorStart: failed to execute getrusage.");
 
@@ -650,6 +653,15 @@ pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
         queryDesc->instrument_options |= INSTRUMENT_BUFFERS;
         queryDesc->instrument_options |= INSTRUMENT_ROWS;
         queryDesc->instrument_options |= INSTRUMENT_WAL;
+
+        shared_storage = get_per_query_shared_storage(); 
+        latch          = get_per_query_latch();
+        LWLockAcquire(shared_storage->lock, LW_SHARED);
+        if (shared_storage->size >= (size_t)(shared_storage->capacity * (pgsm_spil_coefficient/100.0)))
+        {
+            SetLatch(latch);
+        }
+        LWLockRelease(shared_storage->lock);
     }    
 
     if (prev_ExecutorStart)
@@ -690,6 +702,8 @@ pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
             MemoryContextSwitchTo(oldcxt);
         }
     }
+    
+
 }
 
 

@@ -46,7 +46,7 @@ int         pgsm_worker_timeout;
 
 int         pgsm_per_query_storage_capacity;
 int         pgsm_per_query_dsa_size;
-int         pgsm_spil_coefficient
+int         pgsm_spill_coefficient;
 
 
 /* Check hooks to ensure histogram_min < histogram_max */
@@ -326,7 +326,7 @@ init_guc(void)
 							NULL	/* show_hook */
 		);
 
-	DefineCustomIntVariable("pg_stat_monitor.pgsm_per_query_dsa_size," /* name */
+	DefineCustomIntVariable("pg_stat_monitor.pgsm_per_query_dsa_size", /* name */
 							"Sets the maximum size of DSA (MB) used for strings",	/* short_desc */
 							NULL,	/* long_desc */
 							&pgsm_per_query_dsa_size,	/* value address */
@@ -340,14 +340,14 @@ init_guc(void)
 							NULL	/* show_hook */
 		);
 
-	DefineCustomIntVariable("pg_stat_monitor.spil_coefficient", /* name */
- 							"Sets the spil_coefficient",	/* short_desc */
+	DefineCustomIntVariable("pg_stat_monitor.spill_coefficient", /* name */
+ 							"Sets the spill_coefficient",	/* short_desc */
 							NULL,	/* long_desc */
-							&pgsm_spil_coefficient,	/* value address */
+							&pgsm_spill_coefficient,	/* value address */
 							70, /* boot value */
 							50,	/* min value */
 							90,	/* max value */
-							PGC_SUSET, /* context */
+							PGC_USERSET, /* context */
 							0,	/* flags */
 							NULL,	/* check_hook */
 							NULL,	/* assign_hook */
@@ -361,7 +361,7 @@ init_guc(void)
                              &pgsm_log_min_duration,
                              -1,
                              -1, INT_MAX,
-                             PGC_SUSET,
+                             PGC_USERSET,
                              GUC_UNIT_MS,
                              NULL,
                              NULL,
@@ -374,7 +374,7 @@ init_guc(void)
                              &pgsm_log_parameter_max_length,
                              -1,
                              -1, INT_MAX,
-                             PGC_SUSET,
+                             PGC_USERSET,
                              GUC_UNIT_BYTE,
                              NULL,
                              NULL,

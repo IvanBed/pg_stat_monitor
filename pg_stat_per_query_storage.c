@@ -11,7 +11,6 @@ get_offset(pgsmPerQuerySharedStorage *shared_storage)
     if (shared_storage->size < shared_storage->store_capacity)
         offset = shared_storage->size;
     
-    //elog(NOTICE, "size: %d", offset);
     LWLockRelease(shared_storage->lock);
     return offset;
 }
@@ -20,8 +19,7 @@ static bool
 dsa_store(dsa_area *dsa, char * text, size_t text_len, dsa_pointer * pos)
 {
     char  *buf;
-    dsa_pointer dsa_pointer_handle; 
-    
+    dsa_pointer dsa_pointer_handle;  
     dsa_pointer_handle = dsa_allocate_extended(dsa, text_len + 1,  DSA_ALLOC_ZERO);
 
     if (DsaPointerIsValid(dsa_pointer_handle))
@@ -91,7 +89,6 @@ add_el_internal(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, pgsmPe
         elog(NOTICE, "Could not add locks info text into the DSA");
 
     memcpy(shared_storage->store + offset, entry, sizeof(pgsmPerQueryEntry));       
-    shared_storage->free_space_bitmap[offset] = ALLOCATED;
     shared_storage->size++;
     LWLockRelease(shared_storage->lock);
 }
@@ -103,11 +100,8 @@ pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *ds
 
     if (!entry)
         return false;
-
-    //elog(NOTICE, "add_el NEW!");     
+    
     offset = get_offset(shared_storage);
-
-    //elog(NOTICE, "offset %d", offset);
     if (offset != STORAGE_FULL)
     {
         add_el_internal(shared_storage, dsa, entry, offset);
@@ -120,37 +114,33 @@ pgsm_add_per_query_entry(pgsmPerQuerySharedStorage *shared_storage, dsa_area *ds
 }
 
 PGDLLEXPORT void 
-pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa, int const *ret)
+pgsm_cleanup_storage(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa)
 {
     dsa_pointer dsa_query_pointer;
     LWLockAcquire(shared_storage->lock, LW_EXCLUSIVE);
     
-    for (size_t i = 0; i < shared_storage->store_capacity; i++)
+    for (size_t i = 0; i < shared_storage->size; i++)
     {
-        // Delete a tuple in the store and mark this position as FREE.
-        if (ret[i] == SPI_OK_INSERT)
-        {
-            dsa_query_pointer = (shared_storage->store + i)->query_text.query_pos;
-            if(DsaPointerIsValid(dsa))
-                dsa_free(dsa, dsa_query_pointer);
 
-            dsa_query_pointer = (shared_storage->store + i)->plan_info_text.plan_info_pos;
-            if(DsaPointerIsValid(dsa))
-                dsa_free(dsa, dsa_query_pointer);
+        dsa_query_pointer = (shared_storage->store + i)->query_text.query_pos;
+        if(DsaPointerIsValid(dsa))
+            dsa_free(dsa, dsa_query_pointer);
 
-            dsa_query_pointer = (shared_storage->store + i)->rel_info_text.rel_info_pos;
-            if(DsaPointerIsValid(dsa))
-                dsa_free(dsa, dsa_query_pointer);
+        dsa_query_pointer = (shared_storage->store + i)->plan_info_text.plan_info_pos;
+        if(DsaPointerIsValid(dsa))
+            dsa_free(dsa, dsa_query_pointer);
 
-            dsa_query_pointer = (shared_storage->store + i)->locks_info_text.locks_info_pos;
-            if(DsaPointerIsValid(dsa))
-                dsa_free(dsa, dsa_query_pointer);
+        dsa_query_pointer = (shared_storage->store + i)->rel_info_text.rel_info_pos;
+        if(DsaPointerIsValid(dsa))
+            dsa_free(dsa, dsa_query_pointer);
 
-            shared_storage->free_space_bitmap[i] = FREE;
-        }
+        dsa_query_pointer = (shared_storage->store + i)->locks_info_text.locks_info_pos;
+        if(DsaPointerIsValid(dsa))
+            dsa_free(dsa, dsa_query_pointer);
+
     }
     shared_storage->size = 0;
-    //memset(shared_storage->store, 0, shared_storage->store_capacity * sizeof(pgsmPerQueryEntry));
+    memset(shared_storage->store, 0, shared_storage->store_capacity * sizeof(pgsmPerQueryEntry));
 
     LWLockRelease(shared_storage->lock);
 }

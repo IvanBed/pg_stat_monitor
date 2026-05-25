@@ -308,9 +308,9 @@ pgsm_create_per_query_entry(uint64_t execution_id,
 
 
 static void init_worker(BackgroundWorker *worker, long);
-static bool is_threshold_exceeded();
+static bool is_threshold_exceeded(QueryDesc const *queryDesc);
 static uint64_t generate_unique_execution_id(TimestampTz execution_time);
-static bool validate_table_source(QueryDesc *queryDesc);
+static bool validate_table_source(QueryDesc const *queryDesc);
 
 /* pg_per_query_helper.c functions */
 char const *generate_plan_info(QueryDesc const *queryDesc);
@@ -640,13 +640,12 @@ pgsm_post_parse_analyze(ParseState *pstate, Query *query)
 static void
 pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
-    pgsmPerQuerySharedStorage shared_storage;
-    Latch                     latch;
+    pgsmPerQuerySharedStorage *shared_storage;
+    Latch                     *latch;
 
     if (getrusage(RUSAGE_SELF, &rusage_start) != 0)
         elog(DEBUG1, "[pg_stat_monitor] pgsm_ExecutorStart: failed to execute getrusage.");
 
-    
     if (pgsm_collect_per_query_statistics)
     {
         queryDesc->instrument_options |= INSTRUMENT_TIMER; 
@@ -657,7 +656,7 @@ pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
         shared_storage = get_per_query_shared_storage(); 
         latch          = get_per_query_latch();
         LWLockAcquire(shared_storage->lock, LW_SHARED);
-        if (shared_storage->size >= (size_t)(shared_storage->capacity * (pgsm_spil_coefficient/100.0)))
+        if (shared_storage->size >= (size_t)(shared_storage->store_capacity * (pgsm_spill_coefficient/100.0)))
         {
             SetLatch(latch);
         }
@@ -828,7 +827,6 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     /* per query part declaration part */
     pgsmPerQuerySharedStorage  *shared_storage;
     dsa_area                   *dsa;    
-    Latch                      *latch;
     pgsmPerQueryEntry           per_query_entry;
     char const                 *per_node_plan_info_str;
     char const                 *rels_info_str = NULL;
@@ -930,9 +928,14 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         pgsm_store(entry);
     }
 
+    elog(NOTICE, "pgsm_collect_per_query_statistics %d", pgsm_collect_per_query_statistics);
+    elog(NOTICE, "pgsm_log_min_duration %d", pgsm_log_min_duration);
+    elog(NOTICE, "pgsm_log_parameter_max_length %d", pgsm_log_parameter_max_length);
+    elog(NOTICE, "pgsm_worker_timeout %d", pgsm_worker_timeout);
+    elog(NOTICE, "pgsm_spill_coefficient %d", pgsm_spill_coefficient);
     if (pgsm_collect_per_query_statistics && queryDesc->totaltime && is_threshold_exceeded(queryDesc))
     {
-        //elog(NOTICE, "Start per query collecting2");
+        elog(NOTICE, "Start per query collecting2");
         //InstrEndLoop(queryDesc->totaltime);
         
         /* We should use our per query mem context to prevent any memory leaks*/
@@ -940,10 +943,9 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
         
         oldctx = MemoryContextSwitchTo(get_per_query_local_mem_context());
         
-        //elog(NOTICE, "Start per query collecting");
+        elog(NOTICE, "Start per query collecting");
         shared_storage         = get_per_query_shared_storage();    
         dsa                    = get_per_query_dsa_area();
-        latch                  = get_per_query_latch();
 
         //elog(NOTICE, "generate_plan_info");
         per_node_plan_info_str = generate_plan_info(queryDesc);
@@ -973,7 +975,7 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
             sys_info.utime = time_diff(rusage_end.ru_utime, rusage_start.ru_utime);
             sys_info.stime = time_diff(rusage_end.ru_stime, rusage_start.ru_stime);
         }
- 
+        elog(NOTICE, "pgsm_create_per_query_entry");
         pgsm_create_per_query_entry(execution_id,    /* entry */
                                     execution_time,
                                     xid,
@@ -1006,10 +1008,11 @@ pgsm_ExecutorEnd(QueryDesc *queryDesc)
     #endif
                                     &per_query_entry);    /* kind */
     
+        elog(NOTICE, "pgsm_add_per_query_entry");
         if (!pgsm_add_per_query_entry(shared_storage, dsa, &per_query_entry))
         {
             /*  if we can not add the entry into the storage we call the worker and go on to not stop the main proccess */ 
-            SetLatch(latch);
+            //SetLatch(latch);
         }
 
         if (per_node_plan_info_str)
@@ -4440,7 +4443,7 @@ init_worker(BackgroundWorker *worker, long timeout)
 }
 
 static bool 
-validate_table_source(QueryDesc /*const*/ *queryDesc)
+validate_table_source(QueryDesc const *queryDesc)
 {
     EState   *query_state;
     Relation *rels_arr;
@@ -4561,12 +4564,11 @@ Datum pgsm_log_print(PG_FUNCTION_ARGS)
         elog(NOTICE, "STORAGE CONTENT");  
         elog(NOTICE, "--------------------------------------------------");
         elog(NOTICE, "capacity %ld", storage->store_capacity);
-        
-        for (size_t i = 0; i < storage->store_capacity; i++)
+        elog(NOTICE, "current size %ld", storage->size);
+        for (size_t i = 0; i < storage->size; i++)
         {
             text = dsa_get_address(dsa, storage->store[i].query_text.query_pos);
-            if (storage->free_space_bitmap[i] == ALLOCATED)
-                elog(NOTICE, "id: %ld %s", (storage->store + i)->execution_id, text); 
+            elog(NOTICE, "id: %ld %s", (storage->store + i)->execution_id, text); 
         } 
         elog(NOTICE, "--------------------------------------------------");       
     } 

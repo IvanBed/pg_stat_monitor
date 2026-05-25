@@ -508,6 +508,7 @@ extern bool pgsm_collect_per_query_statistics;
 extern int  pgsm_log_min_duration;
 extern int  pgsm_log_parameter_max_length;
 extern int  pgsm_worker_timeout;
+extern int  pgsm_spill_coefficient;
 
 #define DECLARE_HOOK(hook, ...) \
         static hook(__VA_ARGS__);

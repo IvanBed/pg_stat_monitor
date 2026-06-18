@@ -4535,6 +4535,18 @@ generate_unique_execution_id(TimestampTz execution_time)
     return (now_us << 20) | (seq_val & 0xFFFFF);
 }
 
+static uint64_t 
+generate_unique_execution_id_with_pid(TimestampTz execution_time, int pid)
+{
+    uint64_t now_us;
+    uint64_t seq_val;
+
+    now_us  = (uint64_t) execution_time;  
+    seq_val = pg_atomic_fetch_add_u64(&seq, 1);
+
+    return (now_us << 20) | ((pid << 12) & 0xFFFFF) | (seq_val & 0xFFF);
+}
+
 static void 
 init_sys_info(SysInfo *sys_info)
 {

@@ -12,6 +12,18 @@ static dsa_area *get_dsa_area(void);
 static pgsmPerQuerySharedStorage * get_per_query_shared_storage(void);
 static Size pgsm_per_query_area_size(void);
 static Size pgsm_get_per_query_shared_size(void);
+static Oid get_rel_oid(char const *, char const *);
+
+static Oid 
+get_rel_oid(char const *schema, char const *rel_name)
+{        
+    Oid schema_oid;
+    Oid rel_oid;
+
+    schema_oid = get_namespace_oid(schema, false);
+    rel_oid    = get_relname_relid(rel_name, schema_oid);
+    return rel_oid;
+}
 
 static Size
 pgsm_per_query_area_size(void)
@@ -128,18 +140,61 @@ write_data_to_rel(pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa)
     CommitTransactionCommand();
 }
 
+static void 
+write_data_to_rel_direct(Oid tbl_oid, pgsmPerQuerySharedStorage *shared_storage, dsa_area *dsa)
+{	
+    
+    Relation   rel;
+    HeapTuple  tup;
+    Datum      values[1];
+    bool       nulls[1];
+    
+    char	  *query_text;
+    char	  *per_node_plan_info; 
+    char	  *rels_info;    
+    char      *locks_info;
+
+    memset(nulls, false, sizeof(nulls));
+
+    SetCurrentStatementStartTimestamp();
+    StartTransactionCommand();
+    PushActiveSnapshot(GetTransactionSnapshot());
+    rel = try_table_open(tbl_oid, RowExclusiveLock);
+    LWLockAcquire(shared_storage->lock, LW_SHARED);
+    //for(size_t i = 0; i < shared_storage->size; i++)
+    //{
+    values[0] = CStringGetTextDatum("testTESTTEST");
+    nulls[0] = 0;
+    TupleDesc  desc  = rel->rd_att; 
+    tup = heap_form_tuple(desc, values, nulls);
+    CatalogTupleInsert(rel, tup);
+    heap_freetuple(tup);
+    //}
+    if (rel)
+        table_close(rel, RowExclusiveLock);
+    LWLockRelease(shared_storage->lock);
+    PopActiveSnapshot();
+    CommitTransactionCommand();
+    
+    
+}
+
 PGDLLEXPORT void 
 worker_main(Datum main_arg)
 {
     // using args i can pass a db name
     char                      *db_name;
+    Oid                        rel_oid;
     long                       timeout;
     pgsmPerQuerySharedStorage *shared_storage;
     dsa_area                  *dsa;
+  
 
     // to windows should be DatumGetInt32
-    timeout = DatumGetInt64(main_arg);
+    timeout  = DatumGetInt64(main_arg);
     db_name  = "postgres";
+    //rel_oid  = (Oid)get_rel_oid("public", "pg_stat_per_query"); 
+    rel_oid = 57792;
     //timeout  = 10000;
     
     /*add error handling*/
@@ -180,7 +235,8 @@ worker_main(Datum main_arg)
             ConfigReloadPending = false;
             ProcessConfigFile(PGC_SIGHUP);
         }
-        write_data_to_rel(shared_storage, dsa);
+        //write_data_to_rel(shared_storage, dsa);
+        write_data_to_rel_direct(rel_oid, shared_storage, dsa);
         pgsm_cleanup_storage(shared_storage, dsa);
     }
 }

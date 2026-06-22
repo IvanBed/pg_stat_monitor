@@ -326,7 +326,7 @@ dsa_area * get_per_query_dsa_area(void);
 pgsmPerQuerySharedStorage *get_per_query_shared_storage(void);
 MemoryContext get_per_query_local_mem_context(void);
 Latch *get_per_query_latch(void);
-
+WorkerArgs *get_worker_args(void);
 
 void pgsm_per_query_request_shmem(void);
 void pgsm_per_query_startup(void);
@@ -407,17 +407,19 @@ _PG_init(void)
 
     system_init = true;
 
-
     /* Init worker if we want to collect per query statistics*/
     if (pgsm_collect_per_query_statistics)
     {
+        //storage_rel_oid.rel_oid = get_rel_oid("public", "pg_stat_per_query");
+        //storage_rel_oid.is_init = true;
+
         BackgroundWorker worker;
+        //WorkerArgs *args = get_worker_args();
+        //args->rel_oid = 2314;
+
         init_worker(&worker, pgsm_worker_timeout);
         RegisterBackgroundWorker(&worker);
-        
-        storage_rel_oid.is_init = false;
     }
-
 }
 
 /*
@@ -478,7 +480,6 @@ pgsm_shmem_request(void)
     {
         pgsm_per_query_request_shmem();
     }
-
 }
 #endif
 
@@ -671,7 +672,7 @@ pgsm_ExecutorStart(QueryDesc *queryDesc, int eflags)
     /*Init pg_per_query rel oid if it has not been initialized yet*/
     if (!storage_rel_oid.is_init)
     {
-        storage_rel_oid.rel_oid     = get_rel_oid("public", "pg_stat_per_query");
+        storage_rel_oid.rel_oid = get_rel_oid("public", "pg_stat_per_query");
         storage_rel_oid.is_init = true;
     }
     

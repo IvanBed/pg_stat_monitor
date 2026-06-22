@@ -22,6 +22,7 @@ static pgsmLocalState           pgsmStateLocal;
 
 static pgsmPerQueryLocalStorage pgsm_per_query_local_storage;
 static Latch                   *latch;
+static WorkerArgs              *worker_args;
 
 static PGSM_HASH_TABLE_HANDLE pgsm_create_bucket_hash(pgsmSharedState *pgsm, dsa_area *dsa);
 static Size pgsm_get_shared_area_size(void);
@@ -131,6 +132,13 @@ request_shmem_storage(void)
 }
 
 static void 
+request_shmem_worker_args(void)
+{
+    RequestAddinShmemSpace(MAXALIGN(sizeof(WorkerArgs)));
+    RequestNamedLWLockTranche("shmem_worker_args_chunk", 1);
+}
+
+static void 
 init_shared_latch_if_needed(void)
 {
     bool found;
@@ -145,7 +153,7 @@ init_shared_latch_if_needed(void)
     }
     LWLockRelease(AddinShmemInitLock);
 }
-// STORE_CAPACITY AND DSA_STORE_MAX_SIZE to GUC!!!
+
 static void 
 init_storage_shmem_if_needed(void)
 {
@@ -190,6 +198,22 @@ init_storage_shmem_if_needed(void)
 		pgsm_per_query_local_storage.pgsm_mem_cxt = AllocSetContextCreate(TopMemoryContext,
 															"pg_stat_monitor per query store",
 															ALLOCSET_DEFAULT_SIZES);
+    }
+
+    LWLockRelease(AddinShmemInitLock);
+}
+
+static void 
+init_worker_args_shmem_if_needed(void)
+{
+    bool found;
+	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+
+    worker_args = ShmemInitStruct("WorkerArgs", sizeof(WorkerArgs), &found);
+    if(!found) 
+	{
+        worker_args->timeout = 10000;
+		worker_args->rel_oid = 0;
     }
 
     LWLockRelease(AddinShmemInitLock);
@@ -240,11 +264,18 @@ get_per_query_latch(void)
 	return latch;
 }
 
+WorkerArgs *
+get_worker_args(void)
+{
+	return worker_args;
+}
+
 void 
 pgsm_per_query_startup(void)
 {
     init_shared_latch_if_needed();
     init_storage_shmem_if_needed();
+	init_worker_args_shmem_if_needed();
 }
 
 void 
@@ -252,6 +283,7 @@ pgsm_per_query_request_shmem(void)
 {
     request_shmem_shared_latch();
     request_shmem_storage();
+	request_shmem_worker_args();
 }
 
 void

@@ -208,6 +208,8 @@ dfs_plan_state(PlanState const *node, StringInfoData *res_buf, size_t level)
     if (!node)
         return;
     
+    //Assert(!node);
+
     write_node_name(node->type, res_buf, level);
     write_per_node_instr_info(node, res_buf, level);
     level++;
@@ -247,12 +249,13 @@ write_lock_info(LockInstanceData const *instance, LockTagType locktag_type, LOCK
     {
         return;
     }
-
+    //Assert(!instance);
     if (!res_buf)
     {
         return;
     }
-
+    //Assert(!res_buf);
+    
     pid           = instance->pid;
     // check whether it have to be free or not!!!
     lockmode_name = GetLockmodeName(instance->locktag.locktag_lockmethodid, mode);

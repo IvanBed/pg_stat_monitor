@@ -23,6 +23,9 @@ cstring_to_oid(char const *str)
     long result = 0;
  
     errno = 0;
+    
+    //Assert(str);
+
     result = strtol(str, &endptr, 10);
  
     if (errno == ERANGE) 
@@ -52,7 +55,8 @@ cstring_to_oid(char const *str)
 static Oid 
 get_rel_oid(char const *schema, char const *rel_name)
 {        
-    Oid            rel_oid;
+    Oid            rel_oid = 0;
+    
     char          *rel_oid_char;
     int            ret;
     int            ntup;
@@ -72,18 +76,58 @@ get_rel_oid(char const *schema, char const *rel_name)
 
     ret = SPI_execute(buf.data, true, 0);
     if (ret != SPI_OK_SELECT)
+    {
         elog(FATAL, "SPI_execute failed: error code %d", ret);
+        goto exit;
+    }
 
     if (SPI_processed != 1)
+    {
         elog(FATAL, "not a singleton result");
+        goto exit;
+    }
 
     ntup = DatumGetInt64(SPI_getbinval(SPI_tuptable->vals[0],
                                        SPI_tuptable->tupdesc,
                                        1, &isnull));
-    if (isnull)
+    if (isnull || ntup == 0)
+    {
         elog(FATAL, "null result");
-    else 
-        rel_oid_char = SPI_getvalue(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+        goto exit;
+    }
+        
+    rel_oid_char = SPI_getvalue(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+    rel_oid      = cstring_to_oid(rel_oid_char);
+    
+exit:    
+    PopActiveSnapshot();
+    SPI_finish();
+    CommitTransactionCommand();
+    return rel_oid;
+}
+
+static Oid 
+get_rel_oid_prepared_statement(char const *schema, char const *rel_name)
+{        
+    Oid            rel_oid;
+    char          *rel_oid_char;
+    char const    *query = "SELECT '$1.$2'::regclass::oid;"; 
+    int            ret;
+    int            ntup;
+    bool           isnull;
+    StringInfoData buf;
+
+    //Assert(schema);
+    //Assert(rel_name);
+   
+    SetCurrentStatementStartTimestamp();
+    StartTransactionCommand();
+    SPI_connect();
+    PushActiveSnapshot(GetTransactionSnapshot());    
+    
+
+
+    ret = SPI_execute(buf.data, true, 0);
 
     PopActiveSnapshot();
     SPI_finish();

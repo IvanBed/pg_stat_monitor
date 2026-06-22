@@ -18,7 +18,7 @@
 #include <utils/rel.h>
 #include <utils/snapmgr.h>
 #include "libpq/pqsignal.h"
-
+#include "stdlib.h"
 
 #include <access/amapi.h>
 #include <access/heapam.h>
@@ -31,38 +31,34 @@
 #include "catalog/namespace.h"
 #include "utils/lsyscache.h"
 
+#define PER_QUERY_FIELDS 54
+
 extern void worker_main(Datum main_arg);
 
-/*    shared_blk_read_time       float8,
-    shared_blk_write_time      float8,
-    local_blk_read_time        float8,
-    local_blk_write_time       float8,
-
-    temp_blk_read_time         float8,
-    temp_blk_write_time        float8, */
-
-/*execution_id, client_ip, transaction_id, execution_time, application_name, query, comments, exec_time, 
-per_node_plan_info, rels_info, lock_info, cpu_user_time, cpu_sys_time, wal_records, wal_fpi, shared_blks_read, 
-shared_blks_written, shared_blk_read_time, shared_blk_write_time
-*/
 typedef struct Per_Query_Tuple
 {
-    int64 execution_id;
-    int64 client_ip;
-    int64 transaction_id;
-    int64 execution_time;
-    char *application_name;
-    char *query;
-    char *comments
-    int64 exec_time;
-    char *per_node_plan_info;
-    char *rels_info
-    char *lock_info;
+    int64 client_ip; // 4
+    int64 execution_id;  //5
     
-    int64 cpu_user_time;
-    int64 cpu_sys_time;
-    int64 wal_records;
-    int64 wal_fpi;
+    int64 execution_time; //6    
+    int64 transaction_id; //7
+
+    char *application_name; //14
+    char *query; //10
+    char *comments; //46
+    int64 exec_time; // 21
+    char *per_node_plan_info; //49
+    char *lock_info; //50    
+    char *rels_info; //51
+
+    int64  cpu_user_time; //40
+    int64  cpu_sys_time;  //41
+    int64  wal_records; // 42
+    int64  wal_fpi; //43
+    double shared_blks_read; //24
+    double shared_blks_written; //26
+    double shared_blk_read_time;  //33
+    double shared_blk_write_time; //34
 
 } Per_Query_Tuple;
 

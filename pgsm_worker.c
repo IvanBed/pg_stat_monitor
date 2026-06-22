@@ -298,7 +298,7 @@ worker_main(Datum main_arg)
     if (!get_shmem_args())
     {
         elog(NOTICE, "Unable to find worker arguments in shared memory.");
-        return;
+        //return;
     }
 
     // to windows should be DatumGetInt32

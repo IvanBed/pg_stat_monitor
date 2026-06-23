@@ -106,34 +106,22 @@ exit:
     return rel_oid;
 }
 
-static Oid 
-get_rel_oid_prepared_statement(char const *schema, char const *rel_name)
-{        
-    Oid            rel_oid;
-    char          *rel_oid_char;
-    char const    *query = "SELECT '$1.$2'::regclass::oid;"; 
-    int            ret;
-    int            ntup;
-    bool           isnull;
-    StringInfoData buf;
+static Oid
+get_oid_func(char const *rel_name)
+{
+    Oid rel_oid;
 
-    //Assert(schema);
-    //Assert(rel_name);
-   
     SetCurrentStatementStartTimestamp();
     StartTransactionCommand();
     SPI_connect();
-    PushActiveSnapshot(GetTransactionSnapshot());    
-    
+    PushActiveSnapshot(GetTransactionSnapshot());
 
-
-    ret = SPI_execute(buf.data, true, 0);
+    rel_oid = DatumGetObjectId(DirectFunctionCall1(to_regclass, CStringGetTextDatum(rel_name)));
 
     PopActiveSnapshot();
     SPI_finish();
     CommitTransactionCommand();
 
-    rel_oid = cstring_to_oid(rel_oid_char);
     return rel_oid;
 }
 
@@ -360,7 +348,7 @@ worker_main(Datum main_arg)
 
     BackgroundWorkerInitializeConnection(db_name, NULL, 0);
 
-    rel_oid  = get_rel_oid(schema_name, rel_name); 
+    rel_oid  = get_oid_func(rel_name); 
     
     if (rel_oid == 0)
     {

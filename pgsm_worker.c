@@ -13,101 +13,10 @@ static dsa_area *get_dsa_area(void);
 static pgsmPerQuerySharedStorage * get_per_query_shared_storage(void);
 static Size pgsm_per_query_area_size(void);
 static Size pgsm_get_per_query_shared_size(void);
-static Oid get_rel_oid(char const *, char const *);
-static Oid cstring_to_oid(char const *str);
-
-static Oid 
-cstring_to_oid(char const *str)
-{
-    char *endptr;
-    long result = 0;
- 
-    errno = 0;
-    
-    //Assert(str);
-
-    result = strtol(str, &endptr, 10);
- 
-    if (errno == ERANGE) 
-    {
-        elog(FATAL, "cstring_to_oid: An overflow occurred! The value is too large");
-        if (result == LONG_MAX) 
-        {
-            elog(FATAL, "cstring_to_oid: Overflow up (MAX)");
-        } 
-        else if (result == LONG_MIN)
-        {
-            elog(FATAL, "cstring_to_oid: Overflow down (MIN)");
-        }
-    }
-    else if (endptr == str) 
-    {
-        elog(FATAL, "cstring_to_oid: No digits found to convert");
-    }
-
-    else if (*endptr != '\0') 
-    {
-        elog(FATAL, "cstring_to_oid: The end of the line has not been reached");
-    }
-    return (Oid) result;
-}
-
-static Oid 
-get_rel_oid(char const *schema, char const *rel_name)
-{        
-    Oid            rel_oid = 0;
-    
-    char          *rel_oid_char;
-    int            ret;
-    int            ntup;
-    bool           isnull;
-    StringInfoData buf;
-
-    //Assert(schema);
-    //Assert(rel_name);
-
-    SetCurrentStatementStartTimestamp();
-    StartTransactionCommand();
-    SPI_connect();
-    PushActiveSnapshot(GetTransactionSnapshot());    
-    
-    initStringInfo(&buf);
-    appendStringInfo(&buf, "SELECT '%s.%s'::regclass::oid;", schema, rel_name);
-
-    ret = SPI_execute(buf.data, true, 0);
-    if (ret != SPI_OK_SELECT)
-    {
-        elog(FATAL, "SPI_execute failed: error code %d", ret);
-        goto exit;
-    }
-
-    if (SPI_processed != 1)
-    {
-        elog(FATAL, "not a singleton result");
-        goto exit;
-    }
-
-    ntup = DatumGetInt64(SPI_getbinval(SPI_tuptable->vals[0],
-                                       SPI_tuptable->tupdesc,
-                                       1, &isnull));
-    if (isnull || ntup == 0)
-    {
-        elog(FATAL, "null result");
-        goto exit;
-    }
-        
-    rel_oid_char = SPI_getvalue(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
-    rel_oid      = cstring_to_oid(rel_oid_char);
-    
-exit:    
-    PopActiveSnapshot();
-    SPI_finish();
-    CommitTransactionCommand();
-    return rel_oid;
-}
+static Oid get_rel_oid(char const *);
 
 static Oid
-get_oid_func(char const *rel_name)
+get_rel_oid(char const *rel_name)
 {
     Oid rel_oid;
 
@@ -299,7 +208,6 @@ write_data_to_rel_direct(Oid tbl_oid, pgsmPerQuerySharedStorage *shared_storage,
     LWLockRelease(shared_storage->lock);
     PopActiveSnapshot();
     CommitTransactionCommand();
-    
 }
 
 PGDLLEXPORT void 
@@ -335,8 +243,7 @@ worker_main(Datum main_arg)
 
     // to windows should be DatumGetInt32
     timeout     = DatumGetInt64(main_arg);
-    schema_name = "public";
-    rel_name    = "pg_stat_per_query";
+    rel_name    = "public.pg_stat_per_query";
     db_name     = "postgres";
 
     shared_storage = get_per_query_shared_storage();
@@ -348,7 +255,7 @@ worker_main(Datum main_arg)
 
     BackgroundWorkerInitializeConnection(db_name, NULL, 0);
 
-    rel_oid  = get_oid_func(rel_name); 
+    rel_oid  = get_rel_oid(rel_name); 
     
     if (rel_oid == 0)
     {
